@@ -1,0 +1,10 @@
+Block minig mechanics:
+- square blocks on the map?
+- player can mine them?
+
+Changed map visibilty
+- render dark space in places not explored by player
+    - show blocks around player tunels?
+    - extra: some "gradient" for block that is 1 further? (so it is partialy visible?)
+
+- game timer / out of control mechanism 

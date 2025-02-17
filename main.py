@@ -1,6 +1,7 @@
 # Code was based on: https://github.com/kitao/pyxel/blob/main/python/pyxel/examples/10_platformer.py
 
 import pyxel
+import math
 
 SCREEN_W, SCREEN_H = (128, 128)
 
@@ -17,9 +18,11 @@ scroll_x, scroll_y = 0, 0
 player = None
 enemies = []
 
+def clamp(value, min_value, max_value):
+    return max(min_value, min(value, max_value))
 
 def get_tile(tile_x, tile_y):
-    return pyxel.tilemaps[0].pget(tile_x, tile_y)
+    return pyxel.tilemaps[1].pget(tile_x, tile_y)
 
 
 def is_colliding(x, y, is_falling):
@@ -105,6 +108,9 @@ class Player:
         self.x, self.y = push_back(self.x, self.y, self.dx, self.dy)
         self.dx = int(self.dx * 0.8)
         self.is_falling = self.y > last_y
+
+        self.x = clamp(self.x, 0, 248*8)
+        self.y = clamp(self.y, 0, 248*8)
 
         if self.x > scroll_x + SCROLL_BORDER_X:
             last_scroll_x = scroll_x
@@ -225,8 +231,8 @@ class Enemy3Bullet:
 
 class App:
     def __init__(self):
-        pyxel.init(128, 128, title="Pyxel Platformer")
-        pyxel.load("assets/platformer.pyxres")
+        pyxel.init(128, 128, title="2D Miner")
+        pyxel.load("assets/miner.pyxres")
 
         # Change enemy spawn tiles invisible
         pyxel.images[0].rect(0, 8, 24, 8, TRANSPARENT_COLOR)
@@ -256,8 +262,8 @@ class App:
 
         # Draw level
         pyxel.camera()
-        pyxel.bltm(0, 0, 0, (scroll_x // 4) % 128, 128, 128, 128)
-        pyxel.bltm(0, 0, 0, scroll_x, scroll_y, 128, 128, TRANSPARENT_COLOR)
+        pyxel.bltm(0, 0, 2, (scroll_x // 4) % 128, (scroll_y // 4) % 128, 128, 128) # Background
+        pyxel.bltm(0, 0, 1, scroll_x, scroll_y, 128, 128, TRANSPARENT_COLOR) # Foreground
 
         # Draw characters
         pyxel.camera(scroll_x, scroll_y)
