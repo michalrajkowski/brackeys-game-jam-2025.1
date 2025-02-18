@@ -27,7 +27,7 @@ def get_tile(tile_x, tile_y):
 
 def is_colliding(x, y, is_falling):
     x1 = pyxel.floor(x) // 8
-    y1 = pyxel.floor(y) // 8
+    y1 = (pyxel.floor(y)+1) // 8
     x2 = (pyxel.ceil(x) + 7) // 8
     y2 = (pyxel.ceil(y) + 7) // 8
     for yi in range(y1, y2 + 1):

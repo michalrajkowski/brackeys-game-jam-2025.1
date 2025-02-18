@@ -17,3 +17,7 @@ Changed map visibilty
 - game timer / out of control mechanism 
 
 ++ block marker to see what player will mine?
+
+- Mining mechanic
+    - look at block markers
+    - if player is in
