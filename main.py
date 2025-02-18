@@ -134,6 +134,26 @@ class Player:
         u = (2 if self.is_falling else pyxel.frame_count // 3 % 2) * 8
         w = 8 if self.direction > 0 else -8
         pyxel.blt(self.x, self.y, 0, u, 16, w, 8, TRANSPARENT_COLOR)
+    
+    def draw_block_markers(self):
+        # Define the marker graphic
+        marker_graphic = (0, 64, 8, 8)
+        
+        # Calculate bottom marker position
+        y_bottom = ((pyxel.ceil(self.y) + 7) // 8 + 1) * 8
+        x_bottom = ((pyxel.floor(self.x + 4)) // 8) * 8  # Centered below player
+        
+        # Determine closest horizontal tile (left or right)
+        x_left = ((pyxel.floor(self.x) - 1) // 8) * 8
+        x_right = ((pyxel.ceil(self.x) + 7) // 8) * 8
+        y_same = (pyxel.floor(self.y) // 8) * 8
+        
+        x_direction = x_left - 8 if self.direction < 0 else x_right+8
+        
+        # Draw the markers
+        # TODO mark blocks that are not empty space!
+        pyxel.blt(x_direction, y_same, 0, *marker_graphic, TRANSPARENT_COLOR)
+        pyxel.blt(x_bottom, y_bottom, 0, *marker_graphic, TRANSPARENT_COLOR)
 
 
 class Enemy1:
@@ -264,10 +284,17 @@ class App:
         pyxel.camera()
         pyxel.bltm(0, 0, 2, (scroll_x // 4) % 128, (scroll_y // 4) % 128, 128, 128) # Background
         pyxel.bltm(0, 0, 1, scroll_x, scroll_y, 128, 128, TRANSPARENT_COLOR) # Foreground
+        # Render fog of war:
+
+        # Draw block mining markers
+        # Player left, right, down - draw a mark around the blocks
+        
 
         # Draw characters
         pyxel.camera(scroll_x, scroll_y)
         player.draw()
+        # draw block markers?
+        player.draw_block_markers()
         for enemy in enemies:
             enemy.draw()
 
