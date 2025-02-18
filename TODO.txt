@@ -18,8 +18,16 @@ Changed map visibilty
 
 ++ block marker to see what player will mine?
 
-- Mining mechanic
-    - look at block markers
-    - if player is in proximity (very close) and is holding correct direction key, start mining. 
-
++ Mining mechanic
+    + look at block markers
+    + if player is in proximity (very close) and is holding correct direction key, start mining. 
+- Perform mining:
+    - show mining gizmo/timer
+    - if complete, destrony block 
 - double click up to throw the rope. When it hits the celling, it creates a rope. On the rope one does not fall and can swing up/down as he wishes. 
+
+
+BUGFIX:
+- allow player to "fit" in tight spaces:
+    - needs modifying of collision handling, mining blocks proximity
+

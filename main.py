@@ -2,6 +2,7 @@
 
 import pyxel
 import math
+import logging
 
 SCREEN_W, SCREEN_H = (128, 128)
 
@@ -13,11 +14,18 @@ TILE_SPAWN1 = (0, 1)
 TILE_SPAWN2 = (1, 1)
 TILE_SPAWN3 = (2, 1)
 WALL_TILE_X = 4
+VOID_TILE = (0,0)
 
 scroll_x, scroll_y = 0, 0
 player = None
 input = None
 enemies = []
+
+logging.basicConfig(
+    level=logging.DEBUG,  # Set the log level to DEBUG (or another level like INFO, WARNING)
+    format='%(asctime)s - %(levelname)s - %(message)s',  # Include timestamp, log level, and message
+    datefmt='%Y-%m-%d %H:%M:%S',  # Format for the timestamp
+)
 
 def clamp(value, min_value, max_value):
     return max(min_value, min(value, max_value))
@@ -25,6 +33,8 @@ def clamp(value, min_value, max_value):
 def get_tile(tile_x, tile_y):
     return pyxel.tilemaps[1].pget(tile_x, tile_y)
 
+def destroy_block(tile_x,tile_y):
+    pyxel.tilemap(1).pset(tile_x, tile_y, VOID_TILE)
 
 def is_colliding(x, y, is_falling):
     x1 = pyxel.floor(x) // 8
@@ -41,6 +51,31 @@ def is_colliding(x, y, is_falling):
                 return True
     return False
 
+def is_close_enough(entity_x, entity_y, block_x, block_y, proximity=2):
+    # Define the entity's bounding box corners
+    entity_corners = [
+        (entity_x, entity_y),  # top-left
+        (entity_x + 7, entity_y),  # top-right
+        (entity_x, entity_y + 7),  # bottom-left
+        (entity_x + 7, entity_y + 7),  # bottom-right
+    ]
+    
+    # Define the block's bounding box corners
+    block_corners = [
+        (block_x, block_y),  # top-left
+        (block_x + 7, block_y),  # top-right
+        (block_x, block_y + 7),  # bottom-left
+        (block_x + 7, block_y + 7),  # bottom-right
+    ]
+    
+    # Check if any corner of the entity is within the proximity of the block
+    for ex, ey in entity_corners:
+        for bx, by in block_corners:
+            # Check if the distance between entity corner and block corner is within proximity
+            if abs(ex - bx) <= proximity and abs(ey - by) <= proximity:
+                return True  # Entity is close enough to the block
+                
+    return False  # No proximity found
 
 def push_back(x, y, dx, dy):
     for _ in range(pyxel.ceil(abs(dy))):
@@ -179,7 +214,53 @@ class Player:
             last_scroll_y = scroll_y
             scroll_y = max(self.y - (SCREEN_H - SCROLL_BORDER_Y), 0)
             # spawn_enemy(last_scroll_x + 128, scroll_x + 127)
+
+        # Handle mining:
+        # If button is held + player is in proximity he starts mining (only true holding counts (this with delay))
+        # 1. Look at held direction
+        # 2. Look at marked block (proximity + blocktype)
+        # 3. Start mining it if it is valid!
+        marked_blocks_dict = self.get_marker_blocks_dict()
+        for key,state in input.states.items():
+            if input.is_held(key):
+                # try to mine
+                if key not in marked_blocks_dict.keys():
+                    continue 
+                if not is_wall(*marked_blocks_dict[key]):
+                    continue
+                # Proximity check:
+                if not is_close_enough(self.x, self.y, *marked_blocks_dict[key]):
+                    continue
+                logging.debug("Possible to mine!")
+                # Mine, mine, mine!
+                destroy_block(marked_blocks_dict[key][0]//8, marked_blocks_dict[key][1]//8)
+                
+
+                break
+
+        # Handle doubleclicks:
+
+    # left, right, down
+    def get_marker_blocks(self):
+        # Calculate bottom marker position
+        y_bottom = ((pyxel.ceil(self.y) + 7) // 8 + 1) * 8
+        x_bottom = ((pyxel.floor(self.x + 4)) // 8) *8 # Centered below player
         
+        # Determine closest horizontal tile (left or right)
+        x_left = ((pyxel.floor(self.x)) // 8)*8 - 8
+        x_right = ((pyxel.ceil(self.x) + 7) // 8)*8 + 8 
+        y_same = (pyxel.floor(self.y) // 8)*8
+
+        marker_blocks = ((x_left,y_same),(x_right,y_same),(x_bottom, y_bottom))
+        return marker_blocks
+    def get_marker_blocks_dict(self):
+        (left, right, down) = self.get_marker_blocks()
+        marker_blocks = {
+            "left": left,
+            "right": right,
+            "down": down
+        }
+        return marker_blocks
 
     def draw(self):
         u = (2 if self.is_falling else pyxel.frame_count // 3 % 2) * 8
@@ -190,21 +271,13 @@ class Player:
         # Define the marker graphic
         marker_graphic = (0, 64, 8, 8)
         
-        # Calculate bottom marker position
-        y_bottom = ((pyxel.ceil(self.y) + 7) // 8 + 1) * 8
-        x_bottom = ((pyxel.floor(self.x + 4)) // 8) * 8  # Centered below player
-        
-        # Determine closest horizontal tile (left or right)
-        x_left = ((pyxel.floor(self.x) - 1) // 8) * 8
-        x_right = ((pyxel.ceil(self.x) + 7) // 8) * 8
-        y_same = (pyxel.floor(self.y) // 8) * 8
-        
-        x_direction = x_left - 8 if self.direction < 0 else x_right+8
+        (block_left, block_right, block_down) = self.get_marker_blocks()
+        horizontal_block = block_left if self.direction < 0 else block_right
         
         # Draw the markers
         # TODO mark blocks that are not empty space!
-        pyxel.blt(x_direction, y_same, 0, *marker_graphic, TRANSPARENT_COLOR)
-        pyxel.blt(x_bottom, y_bottom, 0, *marker_graphic, TRANSPARENT_COLOR)
+        pyxel.blt(horizontal_block[0], horizontal_block[1], 0, *marker_graphic, TRANSPARENT_COLOR)
+        pyxel.blt(block_down[0], block_down[1], 0, *marker_graphic, TRANSPARENT_COLOR)
 
 
 class Enemy1:
