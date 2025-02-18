@@ -20,4 +20,6 @@ Changed map visibilty
 
 - Mining mechanic
     - look at block markers
-    - if player is in
+    - if player is in proximity (very close) and is holding correct direction key, start mining. 
+
+- double click up to throw the rope. When it hits the celling, it creates a rope. On the rope one does not fall and can swing up/down as he wishes. 

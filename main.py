@@ -16,6 +16,7 @@ WALL_TILE_X = 4
 
 scroll_x, scroll_y = 0, 0
 player = None
+input = None
 enemies = []
 
 def clamp(value, min_value, max_value):
@@ -81,6 +82,56 @@ def cleanup_entities(entities):
         if not entities[i].is_alive:
             del entities[i]
 
+class InputHandler:
+    def __init__(self, double_click_time=10, hold_time=5):
+        self.keys = {
+            "left": [pyxel.KEY_LEFT, pyxel.KEY_A, pyxel.GAMEPAD1_BUTTON_DPAD_LEFT],
+            "right": [pyxel.KEY_RIGHT, pyxel.KEY_D, pyxel.GAMEPAD1_BUTTON_DPAD_RIGHT],
+            "down": [pyxel.KEY_DOWN, pyxel.KEY_S, pyxel.GAMEPAD1_BUTTON_DPAD_DOWN],
+            "jump": [pyxel.KEY_SPACE, pyxel.KEY_W, pyxel.GAMEPAD1_BUTTON_DPAD_UP, pyxel.GAMEPAD1_BUTTON_A],
+        }
+        self.states = {key: {"pressed": False,"long_pressed":False, "held": False, "double_click": False, "last_press_time": -double_click_time} for key in self.keys}
+        self.double_click_time = double_click_time
+        self.hold_time = hold_time
+        self.hold_counters = {key: 0 for key in self.keys}
+
+    def update(self):
+        for action, keys in self.keys.items():
+            pressed_now = any(pyxel.btnp(k) for k in keys)
+            held_now = any(pyxel.btn(k) for k in keys)
+
+            # Double Click Detection
+            self.states[action]["double_click"] = False
+            if pressed_now:
+                if pyxel.frame_count - self.states[action]["last_press_time"] <= self.double_click_time:
+                    self.states[action]["double_click"] = True
+                self.states[action]["last_press_time"] = pyxel.frame_count
+
+            # Holding Detection
+            if held_now:
+                self.hold_counters[action] += 1
+                self.states[action]["held"] = self.hold_counters[action] >= self.hold_time
+            else:
+                self.hold_counters[action] = 0
+                self.states[action]["held"] = False
+
+            self.states[action]["pressed"] = pressed_now
+            self.states[action]["long_pressed"] = held_now
+        for key, state in self.states.items():
+            if state["double_click"]:
+                print(key)
+
+    def is_pressed(self, action):
+        return self.states[action]["pressed"]
+
+    def is_long_pressed(self, action):
+        return self.states[action]["long_pressed"]
+
+    def is_held(self, action):
+        return self.states[action]["held"]
+
+    def is_double_click(self, action):
+        return self.states[action]["double_click"]
 
 class Player:
     def __init__(self, x, y):
@@ -95,14 +146,14 @@ class Player:
         global scroll_x
         global scroll_y
         last_y = self.y
-        if pyxel.btn(pyxel.KEY_LEFT) or pyxel.btn(pyxel.KEY_A) or pyxel.btn(pyxel.GAMEPAD1_BUTTON_DPAD_LEFT):
+        if input.is_long_pressed("left"):
             self.dx = -2
             self.direction = -1
-        if pyxel.btn(pyxel.KEY_RIGHT) or pyxel.btn(pyxel.KEY_D) or pyxel.btn(pyxel.GAMEPAD1_BUTTON_DPAD_RIGHT):
+        if input.is_long_pressed("right"):
             self.dx = 2
             self.direction = 1
         self.dy = min(self.dy + 1, 3)
-        if pyxel.btnp(pyxel.KEY_SPACE) or pyxel.btnp(pyxel.KEY_W) or pyxel.btnp(pyxel.GAMEPAD1_BUTTON_DPAD_UP) or pyxel.btnp(pyxel.GAMEPAD1_BUTTON_A):
+        if input.is_pressed("jump"):
             self.dy = -6
             pyxel.play(3, 8)
         self.x, self.y = push_back(self.x, self.y, self.dx, self.dy)
@@ -257,8 +308,9 @@ class App:
         # Change enemy spawn tiles invisible
         pyxel.images[0].rect(0, 8, 24, 8, TRANSPARENT_COLOR)
 
-        global player
+        global player, input
         player = Player(0, 0)
+        input = InputHandler()
         spawn_enemy(0, 127)
         pyxel.playm(0, loop=True)
         pyxel.run(self.update, self.draw)
@@ -267,6 +319,7 @@ class App:
         if pyxel.btn(pyxel.KEY_Q):
             pyxel.quit()
 
+        input.update() 
         player.update()
         for enemy in enemies:
             if abs(player.x - enemy.x) < 6 and abs(player.y - enemy.y) < 6:
