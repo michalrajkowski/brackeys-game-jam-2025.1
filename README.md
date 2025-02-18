@@ -2,3 +2,6 @@
 
 # Theme
 Nothing can go wrong...
+
+# Early build
+![alt text](assets/miner_18.02.gif)
