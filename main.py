@@ -19,6 +19,7 @@ VOID_TILE = (0,0)
 scroll_x, scroll_y = 0, 0
 player = None
 input = None
+mining_helper = None
 enemies = []
 
 logging.basicConfig(
@@ -116,6 +117,70 @@ def cleanup_entities(entities):
     for i in range(len(entities) - 1, -1, -1):
         if not entities[i].is_alive:
             del entities[i]
+
+class MiningHelper:
+    def __init__(self, required_hits=45):
+        self.current_block = None  # Track only one mined block
+        self.mining_hits = 0
+        self.required_hits = required_hits
+
+    def mine(self, x, y):
+        block_pos = (x // 8, y // 8)
+        
+        if self.current_block != block_pos:
+            self.current_block = block_pos
+            self.mining_hits = 0  # Reset progress when switching blocks
+        
+        self.mining_hits += 1
+        
+        if self.mining_hits >= self.required_hits:
+            destroy_block(block_pos[0], block_pos[1])
+            self.current_block = None
+            self.mining_hits = 0
+    
+    def draw(self):
+        if not self.current_block:
+            return
+        x, y = self.current_block[0] * 8, self.current_block[1] * 8
+        progress = self.mining_hits / self.required_hits
+
+        # Define the number of dots for the rectangle's perimeter
+        total_dots = 32  # 8 dots per side for an 8x8 block
+
+        # Calculate the number of filled dots based on progress
+        filled_dots = int(total_dots * progress)
+
+        # Draw top side
+        for i in range(8):
+            if i < filled_dots:
+                pyxel.pset(x + i, y - 1, 7)  # Filled dot
+            else:
+                pyxel.pset(x + i, y - 1, 13)  # Unfilled dot
+
+        # Draw right side
+        for i in range(8):
+            if 8 + i < filled_dots:
+                pyxel.pset(x + 8, y + i, 7)  # Filled dot
+            else:
+                pyxel.pset(x + 8, y + i, 13)  # Unfilled dot
+
+        # Draw bottom side
+        for i in range(8):
+            if 16 + i < filled_dots:
+                pyxel.pset(x + 7 - i, y + 8, 7)  # Filled dot
+            else:
+                pyxel.pset(x + 7 - i, y + 8, 13)  # Unfilled dot
+
+        # Draw left side
+        for i in range(8):
+            if 24 + i < filled_dots:
+                pyxel.pset(x - 1, y + 7 - i, 7)  # Filled dot
+            else:
+                pyxel.pset(x - 1, y + 7 - i, 13)  # Unfilled dot
+    
+    def reset(self):
+        self.current_block = None
+        self.mining_hits = 0
 
 class InputHandler:
     def __init__(self, double_click_time=10, hold_time=5):
@@ -221,6 +286,7 @@ class Player:
         # 2. Look at marked block (proximity + blocktype)
         # 3. Start mining it if it is valid!
         marked_blocks_dict = self.get_marker_blocks_dict()
+        pre_mining_progress = mining_helper.mining_hits
         for key,state in input.states.items():
             if input.is_held(key):
                 # try to mine
@@ -233,10 +299,11 @@ class Player:
                     continue
                 logging.debug("Possible to mine!")
                 # Mine, mine, mine!
-                destroy_block(marked_blocks_dict[key][0]//8, marked_blocks_dict[key][1]//8)
-                
-
+                mining_helper.mine(marked_blocks_dict[key][0], marked_blocks_dict[key][1])                
                 break
+        if not (mining_helper.mining_hits > pre_mining_progress):
+            # Reset mining
+            mining_helper.reset()
 
         # Handle doubleclicks:
 
@@ -268,16 +335,22 @@ class Player:
         pyxel.blt(self.x, self.y, 0, u, 16, w, 8, TRANSPARENT_COLOR)
     
     def draw_block_markers(self):
-        # Define the marker graphic
+        # Define the marker graphics
         marker_graphic = (0, 64, 8, 8)
+        marker_graphic_hit = (8, 64, 8, 8)
         
         (block_left, block_right, block_down) = self.get_marker_blocks()
         horizontal_block = block_left if self.direction < 0 else block_right
         
+        # Determine the correct marker based on mining hits
+        if mining_helper.current_block and ((mining_helper.mining_hits)% 30 < 7):
+            marker = marker_graphic_hit
+        else:
+            marker = marker_graphic
+        
         # Draw the markers
-        # TODO mark blocks that are not empty space!
-        pyxel.blt(horizontal_block[0], horizontal_block[1], 0, *marker_graphic, TRANSPARENT_COLOR)
-        pyxel.blt(block_down[0], block_down[1], 0, *marker_graphic, TRANSPARENT_COLOR)
+        pyxel.blt(horizontal_block[0], horizontal_block[1], 0, *marker, TRANSPARENT_COLOR)
+        pyxel.blt(block_down[0], block_down[1], 0, *marker, TRANSPARENT_COLOR)
 
 
 class Enemy1:
@@ -381,9 +454,10 @@ class App:
         # Change enemy spawn tiles invisible
         pyxel.images[0].rect(0, 8, 24, 8, TRANSPARENT_COLOR)
 
-        global player, input
+        global player, input, mining_helper
         player = Player(0, 0)
         input = InputHandler()
+        mining_helper = MiningHelper()
         spawn_enemy(0, 127)
         pyxel.playm(0, loop=True)
         pyxel.run(self.update, self.draw)
@@ -423,6 +497,9 @@ class App:
         player.draw_block_markers()
         for enemy in enemies:
             enemy.draw()
+
+        # Draw gizmos
+        mining_helper.draw()
 
 
 def game_over():

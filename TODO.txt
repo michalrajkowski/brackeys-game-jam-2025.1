@@ -21,10 +21,21 @@ Changed map visibilty
 + Mining mechanic
     + look at block markers
     + if player is in proximity (very close) and is holding correct direction key, start mining. 
-- Perform mining:
+> Perform mining:
     - show mining gizmo/timer
-    - if complete, destrony block 
+    - if complete, destrony block
+        - store destroyed blocks?
+        - blocks as ID, get currently mined block traits!
+
+
 - double click up to throw the rope. When it hits the celling, it creates a rope. On the rope one does not fall and can swing up/down as he wishes. 
+
+
+Fog of war?
+
+Resources + EQ system?
+
+SOME NORMAL BLOCK DATA STORING!!!
 
 
 BUGFIX:
