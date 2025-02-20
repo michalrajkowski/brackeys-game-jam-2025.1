@@ -1,0 +1,44 @@
+Block minig mechanics:
+- square blocks on the map?
+- player can mine them?
+
+Traits assigned to blocks? Better map generation? (with random resources + caves spawn?)
+- ores
+    - randomise ore based on depth
+    - some "story locations" underground / special stuff
+    - maybe do not tie mechanics only to sprite? xd
+    - better map generator / blocks traits handler!
+
+Changed map visibilty
+- render dark space in places not explored by player
+    - show blocks around player tunels?
+    - extra: some "gradient" for block that is 1 further? (so it is partialy visible?)
+
+- game timer / out of control mechanism 
+
+++ block marker to see what player will mine?
+
++ Mining mechanic
+    + look at block markers
+    + if player is in proximity (very close) and is holding correct direction key, start mining. 
+> Perform mining:
+    - show mining gizmo/timer
+    - if complete, destrony block
+        - store destroyed blocks?
+        - blocks as ID, get currently mined block traits!
+
+
+- double click up to throw the rope. When it hits the celling, it creates a rope. On the rope one does not fall and can swing up/down as he wishes. 
+
+
+Fog of war?
+
+Resources + EQ system?
+
+SOME NORMAL BLOCK DATA STORING!!!
+
+
+BUGFIX:
+- allow player to "fit" in tight spaces:
+    - needs modifying of collision handling, mining blocks proximity
+
