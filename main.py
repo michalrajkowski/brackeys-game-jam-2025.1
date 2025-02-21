@@ -8,6 +8,7 @@ from enum import Enum, auto
 import random
 
 SCREEN_W, SCREEN_H = (128, 128)
+MAP_SIZE_BLOCKS_X, MAP_SIZE_BLOCKS_Y = 256, 256
 
 TRANSPARENT_COLOR = 2
 SCROLL_BORDER_X = 80
@@ -192,52 +193,77 @@ class MiningHelper:
         self.current_block = None
         self.mining_hits = 0
 
-# map blocks array
-# Stores block id's on coords
-# World blocks visual loading
-# Is used to get block at certain coords
+# === Static Block Data ===
+class Blocks:
+    # Block properties stored in a dictionary (no instance data)
+    TEXTURES = {
+        BlockID.AIR: (48, 112, 8, 8),
+        BlockID.GRASS: (48, 104, 8, 8),
+        BlockID.DIRT: (48, 80, 8, 8),
+        BlockID.STONE: (48, 64, 8, 8),
+    }
 
-MAP_SIZE_BLOCKS_X, MAP_SIZE_BLOCKS_Y = 256, 256
+    SOLIDITY = {
+        BlockID.AIR: False,
+        BlockID.GRASS: True,
+        BlockID.DIRT: True,
+        BlockID.STONE: True,
+    }
+
+    MINING_HITS = {
+        BlockID.AIR: 0,
+        BlockID.GRASS: 5,
+        BlockID.DIRT: 10,
+        BlockID.STONE: 20,
+    }
+
+    @staticmethod
+    def get_texture(block_id):
+        return Blocks.TEXTURES.get(block_id, (0, 0, 0, 0))
+
+    @staticmethod
+    def is_solid(block_id):
+        return Blocks.SOLIDITY.get(block_id, True)
+
+    @staticmethod
+    def get_mining_hits(block_id):
+        return Blocks.MINING_HITS.get(block_id, 0)
+
+# === Block Map Handler ===
 class BlocksHandler:
     def __init__(self):
-        self.blocks_map : dict[tuple[int, int], int] = {}
+        self.blocks_map: dict[tuple[int, int], BlockID] = {}
+        self.generate_map()
 
     def generate_map(self):
         for i in range(MAP_SIZE_BLOCKS_X):
             for j in range(MAP_SIZE_BLOCKS_Y):
-                self.blocks_map[(i,j)] = random_block = random.choice(list(BlockID)).value
+                self.blocks_map[(i, j)] = random.choice(list(BlockID))
 
     def is_in_range(self, block_x, block_y):
-        return (block_x >= 0 and block_x < MAP_SIZE_BLOCKS_X and block_y >= 0 and block_y < MAP_SIZE_BLOCKS_Y)
-    
+        return 0 <= block_x < MAP_SIZE_BLOCKS_X and 0 <= block_y < MAP_SIZE_BLOCKS_Y
+
     def set_block(self, block_x, block_y, block_id):
-        self.blocks_map[(block_x, block_y)] = block_id
+        if self.is_in_range(block_x, block_y):
+            self.blocks_map[(block_x, block_y)] = block_id
 
     def get_block_id(self, block_x, block_y):
-        return self.blocks_map[(block_x, block_y)]
-    
-    def get_block_image(self, block_x, block_y):
-        return (48,64,8,8)
+        return self.blocks_map.get((block_x, block_y), BlockID.AIR)
 
-    
-    # Draw all blocks in player field of view + 1 block offset in each side
+    def get_block_image(self, block_x, block_y):
+        block_id = self.get_block_id(block_x, block_y)
+        return Blocks.get_texture(block_id)
+
     def draw(self):
         for i in range(5):
             for j in range(5):
-                self.draw_block(i,j)
+                self.draw_block(i, j)
+
     def draw_block(self, block_x, block_y):
         if not self.is_in_range(block_x, block_y):
             return
-        # Draw block texture in current place of the screen:
         block_image = self.get_block_image(block_x, block_y)
-        pyxel.blt(block_x*8, block_y*8, 0, *block_image, TRANSPARENT_COLOR)
-    
-    # Id, sprite, mining durability, some special methods?
-    class Block_base:
-        def __init__(self, id, texture):
-            self.id = id
-            self.texture = texture
-            self.is_solid = True
+        pyxel.blt(block_x * 8, block_y * 8, 0, *block_image, TRANSPARENT_COLOR)
 
 
 class InputHandler:
