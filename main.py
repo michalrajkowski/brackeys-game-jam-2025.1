@@ -238,8 +238,10 @@ class BlocksHandler:
     def generate_map(self):
         for i in range(MAP_SIZE_BLOCKS_X):
             for j in range(MAP_SIZE_BLOCKS_Y):
-                self.blocks_map[(i, j)] = random.choice(list(BlockID))
-
+                if j > 10:
+                    self.blocks_map[(i, j)] = random.choice(list(BlockID))
+                else:
+                    self.blocks_map[(i, j)] = BlockID.AIR
     def is_in_range(self, block_x, block_y):
         return 0 <= block_x < MAP_SIZE_BLOCKS_X and 0 <= block_y < MAP_SIZE_BLOCKS_Y
 
@@ -255,15 +257,26 @@ class BlocksHandler:
         return Blocks.get_texture(block_id)
 
     def draw(self):
-        for i in range(5):
-            for j in range(5):
-                self.draw_block(i, j)
+        start_x = scroll_x // 8 - 1
+        start_y = scroll_y // 8 - 1
+        end_x = (scroll_x + 128) // 8 + 1
+        end_y = (scroll_y + 128) // 8 + 1
 
-    def draw_block(self, block_x, block_y):
+        for block_x in range(start_x, end_x + 1):
+            for block_y in range(start_y, end_y + 1):
+                self.draw_block(block_x, block_y, scroll_x, scroll_y)
+
+    def draw_block(self, block_x, block_y, scroll_x, scroll_y):
         if not self.is_in_range(block_x, block_y):
             return
+
         block_image = self.get_block_image(block_x, block_y)
-        pyxel.blt(block_x * 8, block_y * 8, 0, *block_image, TRANSPARENT_COLOR)
+        
+        # Convert block grid position to screen position
+        screen_x = block_x * 8 - scroll_x
+        screen_y = block_y * 8 - scroll_y
+
+        pyxel.blt(screen_x, screen_y, 0, *block_image, TRANSPARENT_COLOR)
 
 
 class InputHandler:
