@@ -327,6 +327,7 @@ class Player:
         global scroll_x
         global scroll_y
         last_y = self.y
+        last_direction = self.direction
         if input.is_long_pressed("left"):
             self.dx = -2
             self.direction = -1
@@ -340,6 +341,8 @@ class Player:
         self.x, self.y = push_back(self.x, self.y, self.dx, self.dy)
         self.dx = int(self.dx * 0.8)
         self.is_falling = self.y > last_y
+        if not self.is_falling:
+            self.dy = 0
 
         self.x = clamp(self.x, 0, 248 * 8)
         self.y = clamp(self.y, 0, 248 * 8)
@@ -360,8 +363,10 @@ class Player:
             last_scroll_y = scroll_y
             scroll_y = max(self.y - (SCREEN_H - SCROLL_BORDER_Y), 0)
             # spawn_enemy(last_scroll_x + 128, scroll_x + 127)
-        scroll_x -= scroll_x % SCALE
-        scroll_y -= scroll_y % SCALE
+        if last_direction != self.direction:
+            # if self.direction == -1:
+            #     scroll_x += 1
+            scroll_x = scroll_x - scroll_x % 8
 
         # Handle mining:
         # If button is held + player is in proximity he starts mining (only true holding counts (this with delay))
@@ -417,6 +422,8 @@ class Player:
         pyxel.blt(self.x, self.y, 0, u, 16, w, 8, TRANSPARENT_COLOR)
 
     def draw_block_markers(self):
+        if self.dx != 0 or self.dy != 0:
+            return
         # Define the marker graphics
         marker_graphic = (0, 64, 8, 8)
         marker_graphic_hit = (8, 64, 8, 8)
