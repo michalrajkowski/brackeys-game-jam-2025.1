@@ -1,8 +1,11 @@
 # Code was based on: https://github.com/kitao/pyxel/blob/main/python/pyxel/examples/10_platformer.py
 
+
 import pyxel
 import math
 import logging
+from enum import Enum, auto
+import random
 
 SCREEN_W, SCREEN_H = (128, 128)
 
@@ -16,10 +19,17 @@ TILE_SPAWN3 = (2, 1)
 WALL_TILE_X = 4
 VOID_TILE = (0,0)
 
+class BlockID(Enum):
+    AIR = auto()
+    GRASS = auto()
+    DIRT = auto()
+    STONE = auto()
+
 scroll_x, scroll_y = 0, 0
 player = None
 input = None
 mining_helper = None
+blocks_handler = None
 enemies = []
 
 logging.basicConfig(
@@ -181,6 +191,54 @@ class MiningHelper:
     def reset(self):
         self.current_block = None
         self.mining_hits = 0
+
+# map blocks array
+# Stores block id's on coords
+# World blocks visual loading
+# Is used to get block at certain coords
+
+MAP_SIZE_BLOCKS_X, MAP_SIZE_BLOCKS_Y = 256, 256
+class BlocksHandler:
+    def __init__(self):
+        self.blocks_map : dict[tuple[int, int], int] = {}
+
+    def generate_map(self):
+        for i in range(MAP_SIZE_BLOCKS_X):
+            for j in range(MAP_SIZE_BLOCKS_Y):
+                self.blocks_map[(i,j)] = random_block = random.choice(list(BlockID)).value
+
+    def is_in_range(self, block_x, block_y):
+        return (block_x >= 0 and block_x < MAP_SIZE_BLOCKS_X and block_y >= 0 and block_y < MAP_SIZE_BLOCKS_Y)
+    
+    def set_block(self, block_x, block_y, block_id):
+        self.blocks_map[(block_x, block_y)] = block_id
+
+    def get_block_id(self, block_x, block_y):
+        return self.blocks_map[(block_x, block_y)]
+    
+    def get_block_image(self, block_x, block_y):
+        return (48,64,8,8)
+
+    
+    # Draw all blocks in player field of view + 1 block offset in each side
+    def draw(self):
+        for i in range(5):
+            for j in range(5):
+                self.draw_block(i,j)
+    def draw_block(self, block_x, block_y):
+        if not self.is_in_range(block_x, block_y):
+            return
+        # Draw block texture in current place of the screen:
+        block_image = self.get_block_image(block_x, block_y)
+        pyxel.blt(block_x*8, block_y*8, 0, *block_image, TRANSPARENT_COLOR)
+    
+    # Id, sprite, mining durability, some special methods?
+    class Block_base:
+        def __init__(self, id, texture):
+            self.id = id
+            self.texture = texture
+            self.is_solid = True
+
 
 class InputHandler:
     def __init__(self, double_click_time=10, hold_time=5):
@@ -454,10 +512,11 @@ class App:
         # Change enemy spawn tiles invisible
         pyxel.images[0].rect(0, 8, 24, 8, TRANSPARENT_COLOR)
 
-        global player, input, mining_helper
+        global player, input, mining_helper, blocks_handler
         player = Player(0, 0)
         input = InputHandler()
         mining_helper = MiningHelper()
+        blocks_handler = BlocksHandler()
         spawn_enemy(0, 127)
         pyxel.playm(0, loop=True)
         pyxel.run(self.update, self.draw)
@@ -482,8 +541,12 @@ class App:
 
         # Draw level
         pyxel.camera()
+
         pyxel.bltm(0, 0, 2, (scroll_x // 4) % 128, (scroll_y // 4) % 128, 128, 128) # Background
         pyxel.bltm(0, 0, 1, scroll_x, scroll_y, 128, 128, TRANSPARENT_COLOR) # Foreground
+        
+        # Render map with block handler:
+        blocks_handler.draw()
         # Render fog of war:
 
         # Draw block mining markers
