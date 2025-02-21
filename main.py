@@ -1,10 +1,15 @@
 # Code was based on: https://github.com/kitao/pyxel/blob/main/python/pyxel/examples/10_platformer.py
 
+import random
 import pyxel
 import math
 import logging
 
+SCALE = 8
+
 SCREEN_W, SCREEN_H = (128, 128)
+SCREEN_BLOCKS_W = SCREEN_W // SCALE
+SCREEN_BLOCKS_H = SCREEN_H // SCALE
 
 TRANSPARENT_COLOR = 2
 SCROLL_BORDER_X = 80
@@ -22,6 +27,54 @@ input = None
 mining_helper = None
 enemies = []
 
+DIRT_SPRITE = [(48, 80), (56, 80), (48, 88), (56, 88)]
+STONE_SPRITE = [(48, 64), (56, 72), (48, 64), (56, 72)]
+GRASS_SPRITE = [(48, 104), (56, 104)]
+
+WORLD_SIZE = (1024, 1024)
+WORLD = [[((0, 0), 0) for x in range(WORLD_SIZE[0])] for y in range(WORLD_SIZE[1])]
+
+RANDOM_BLOCK_OFFSET = 10
+
+
+def chose_sprite(sprite, loc_hash):
+    return sprite[loc_hash % len(sprite)]
+
+
+def chose_block(x, y, loc_hash):
+    if y < 15:
+        return (0, 0)
+    if y == 15:
+        return chose_sprite(GRASS_SPRITE, loc_hash)
+    if y < 40 + 1 - RANDOM_BLOCK_OFFSET // 2 + loc_hash % RANDOM_BLOCK_OFFSET:
+        return chose_sprite(DIRT_SPRITE, loc_hash)
+
+    return chose_sprite(STONE_SPRITE, loc_hash)
+
+
+def word_gen(seed):
+    for y in range(WORLD_SIZE[1]):
+        for x in range(WORLD_SIZE[0]):
+            loc_hash = hash((seed, x, y))
+            block = chose_block(x, y, loc_hash)
+            WORLD[y][x] = (block, loc_hash)
+
+
+def draw_word(scroll_x, scroll_y):
+    x_start = scroll_x // SCALE
+    y_start = scroll_y // SCALE
+
+    for y in range(SCREEN_BLOCKS_H):
+        for x in range(SCREEN_BLOCKS_W):
+            (block, loc_hash) = WORLD[y + y_start][x + x_start]
+            pyxel.blt(x * SCALE, y * SCALE, 0, block[0], block[1], 8, 8)
+
+
+def world_set(x, y, block):
+    loc_hash = WORLD[y][x][1]
+    WORLD[y][x] = (block, loc_hash)
+
+
 logging.basicConfig(
     level=logging.DEBUG,  # Set the log level to DEBUG (or another level like INFO, WARNING)
     format="%(asctime)s - %(levelname)s - %(message)s",  # Include timestamp, log level, and message
@@ -34,11 +87,11 @@ def clamp(value, min_value, max_value):
 
 
 def get_tile(tile_x, tile_y):
-    return pyxel.tilemaps[1].pget(tile_x, tile_y)
+    return WORLD[tile_y][tile_x][0]
 
 
 def destroy_block(tile_x, tile_y):
-    pyxel.tilemap(1).pset(tile_x, tile_y, VOID_TILE)
+    world_set(tile_x, tile_y, VOID_TILE)
 
 
 def is_colliding(x, y, is_falling):
@@ -307,6 +360,8 @@ class Player:
             last_scroll_y = scroll_y
             scroll_y = max(self.y - (SCREEN_H - SCROLL_BORDER_Y), 0)
             # spawn_enemy(last_scroll_x + 128, scroll_x + 127)
+        scroll_x -= scroll_x % SCALE
+        scroll_y -= scroll_y % SCALE
 
         # Handle mining:
         # If button is held + player is in proximity he starts mining (only true holding counts (this with delay))
@@ -488,6 +543,8 @@ class App:
         input = InputHandler()
         mining_helper = MiningHelper()
         spawn_enemy(0, 127)
+        self.seed = random.seed()
+        word_gen(self.seed)
         pyxel.playm(0, loop=True)
         pyxel.run(self.update, self.draw)
 
@@ -511,13 +568,14 @@ class App:
 
         # Draw level
         pyxel.camera()
-        pyxel.bltm(
-            0, 0, 2, (scroll_x // 4) % 128, (scroll_y // 4) % 128, 128, 128
-        )  # Background
-        pyxel.bltm(
-            0, 0, 1, scroll_x, scroll_y, 128, 128, TRANSPARENT_COLOR
-        )  # Foreground
+        # pyxel.bltm(
+        #     0, 0, 2, (scroll_x // 4) % 128, (scroll_y // 4) % 128, 128, 128
+        # )  # Background
+        # pyxel.bltm(
+        #     0, 0, 1, scroll_x, scroll_y, 128, 128, TRANSPARENT_COLOR
+        # )  # Foreground
         # Render fog of war:
+        draw_word(scroll_x, scroll_y)
 
         # Draw block mining markers
         # Player left, right, down - draw a mark around the blocks
