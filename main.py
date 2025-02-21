@@ -70,7 +70,7 @@ def is_colliding(x, y, is_falling):
     #             return True
     return False
 
-def is_close_enough(entity_x, entity_y, block_x, block_y, proximity=2):
+def is_close_enough(entity_x, entity_y, block_x, block_y, proximity=4):
     # Define the entity's bounding box corners
     entity_corners = [
         (entity_x, entity_y),  # top-left
@@ -112,8 +112,7 @@ def push_back(x, y, dx, dy):
     return x, y
 
 
-def is_wall(x, y):
-    block_x, block_y = x // 8, y // 8
+def is_wall(block_x, block_y):
     return blocks_handler.is_solid(block_x, block_y)
 
 def cleanup_entities(entities):
@@ -128,7 +127,7 @@ class MiningHelper:
         self.required_hits = required_hits
 
     def mine(self, x, y):
-        block_pos = (x // 8, y // 8)
+        block_pos = (x, y)
         
         if self.current_block != block_pos:
             self.current_block = block_pos
@@ -385,21 +384,25 @@ class Player:
         # 1. Look at held direction
         # 2. Look at marked block (proximity + blocktype)
         # 3. Start mining it if it is valid!
-        marked_blocks_dict = self.get_marker_blocks_dict()
+        marked_blocks = self.get_marker_blocks()
         pre_mining_progress = mining_helper.mining_hits
         for key,state in input.states.items():
             if input.is_held(key):
-                # try to mine
-                if key not in marked_blocks_dict.keys():
-                    continue 
-                if not is_wall(*marked_blocks_dict[key]):
+                # get marked blocks assiciated with key
+                mined_blocks_coords = None
+                for blocks in marked_blocks:
+                    if blocks[2] == key:
+                        mined_blocks_coords = (blocks[0], blocks[1])
+                        print("FOUND!")
+                        break
+                if mined_blocks_coords == None:
+                    continue
+                if not is_wall(*mined_blocks_coords):
                     continue
                 # Proximity check:
-                if not is_close_enough(self.x, self.y, *marked_blocks_dict[key]):
-                    continue
                 logging.debug("Possible to mine!")
                 # Mine, mine, mine!
-                mining_helper.mine(marked_blocks_dict[key][0], marked_blocks_dict[key][1])                
+                mining_helper.mine(*mined_blocks_coords)                
                 break
         if not (mining_helper.mining_hits > pre_mining_progress):
             # Reset mining
@@ -408,25 +411,24 @@ class Player:
         # Handle doubleclicks:
 
     # left, right, down
-    def get_marker_blocks(self):
-        # Calculate bottom marker position
-        y_bottom = ((pyxel.ceil(self.y) + 7) // 8 + 1) * 8
-        x_bottom = ((pyxel.floor(self.x + 4)) // 8) *8 # Centered below player
-        
-        # Determine closest horizontal tile (left or right)
-        x_left = ((pyxel.floor(self.x)) // 8)*8 - 8
-        x_right = ((pyxel.ceil(self.x) + 7) // 8)*8 + 8 
-        y_same = (pyxel.floor(self.y) // 8)*8
 
-        marker_blocks = ((x_left,y_same),(x_right,y_same),(x_bottom, y_bottom))
-        return marker_blocks
-    def get_marker_blocks_dict(self):
-        (left, right, down) = self.get_marker_blocks()
-        marker_blocks = {
-            "left": left,
-            "right": right,
-            "down": down
-        }
+    # Marker blocks = blocks that are in player proximity if solid?
+    def get_marker_blocks(self):
+        player_middle_x,player_middle_y = pyxel.floor(self.x + 4), pyxel.floor(self.y + 4)
+
+        directions = [(0, 1),(0, -1),(1, 0),(-1, 0)]
+        directions_names = ["down","jump","right","left"]
+        neighbour_points = [(player_middle_x + dx * 8, player_middle_y + dy * 8, directions_names[directions.index((dx,dy))]) for dx, dy in directions]
+
+        marker_blocks = []
+        for nei_point in neighbour_points:
+            (px, py, dir_name) = nei_point
+            bx, by = px//8, py//8
+            if not blocks_handler.is_solid(bx, by):
+                continue
+            if not is_close_enough(self.x, self.y, bx*8, by*8):
+                continue
+            marker_blocks.append((bx, by, dir_name))
         return marker_blocks
 
     def draw(self):
@@ -439,8 +441,7 @@ class Player:
         marker_graphic = (0, 64, 8, 8)
         marker_graphic_hit = (8, 64, 8, 8)
         
-        (block_left, block_right, block_down) = self.get_marker_blocks()
-        horizontal_block = block_left if self.direction < 0 else block_right
+        marker_blocks = self.get_marker_blocks()
         
         # Determine the correct marker based on mining hits
         if mining_helper.current_block and ((mining_helper.mining_hits)% 30 < 7):
@@ -448,9 +449,9 @@ class Player:
         else:
             marker = marker_graphic
         
-        # Draw the markers
-        pyxel.blt(horizontal_block[0], horizontal_block[1], 0, *marker, TRANSPARENT_COLOR)
-        pyxel.blt(block_down[0], block_down[1], 0, *marker, TRANSPARENT_COLOR)
+        for block in marker_blocks:
+            (bx, by, block_name) = block
+            pyxel.blt(bx*8, by*8, 0, *marker, TRANSPARENT_COLOR)
 
 class App:
     def __init__(self):
