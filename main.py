@@ -177,7 +177,7 @@ class MiningHelper:
             self.current_block = block_pos
             self.mining_hits = 0  # Reset progress when switching blocks
 
-        self.mining_hits += 1
+        self.mining_hits += 100
 
         if self.mining_hits >= self.required_hits:
             destroy_block(block_pos[0], block_pos[1])
@@ -330,6 +330,7 @@ class BlocksHandler:
         self.variants_map = {(x,y) : random.randint(0,3) for x in range(MAP_SIZE_BLOCKS_X) for y in range(MAP_SIZE_BLOCKS_Y)}
         self.generate_map()
         self.generate_caves()
+        self.rocks_gradient_changer()
 
     def destroy_block(self, block_x, block_y):
         if not self.is_in_range(block_x, block_y):
@@ -397,7 +398,7 @@ class BlocksHandler:
         ore_image = Ores.get_texture(ore_id)
         pyxel.blt(screen_x, screen_y, 0, *ore_image, TRANSPARENT_COLOR)
 
-    def generate_caves(self, fill_probability=70, iterations=5):
+    def generate_caves(self, fill_probability=72, iterations=5):
         for y in range(MAP_SIZE_BLOCKS_Y):
             for x in range(MAP_SIZE_BLOCKS_X):
                 if random.randint(0, 100) < fill_probability:
@@ -418,18 +419,47 @@ class BlocksHandler:
                     else:
                         new_blocks_map[(x,y)] = BlockID.AIR
             self.blocks_map = new_blocks_map
+        # Fix missing borders
+        for y in range(MAP_SIZE_BLOCKS_Y):
+            self.set_block(0, y, BlockID.STONE)
+            self.set_block(MAP_SIZE_BLOCKS_X-1, y, BlockID.STONE)
 
-#     def rocks_gradient_changer(self, layer_height = 40):
-        # first 10 == air
-#        for x in range()
+    def rocks_gradient_changer(self, layer_height=10, buffer=10):
+        layers = [BlockID.DIRT, BlockID.STONE, BlockID.HARD_STONE, BlockID.MAGMA_ROCK]
+        
+        for y in range(MAP_SIZE_BLOCKS_Y):
+            for x in range(MAP_SIZE_BLOCKS_X):
+                if y < 10:
+                    self.set_block(x, y, BlockID.AIR)
+                elif y == 10:
+                    self.set_block(x, y, BlockID.GRASS)
+                elif y < 13:
+                    self.set_block(x, y, BlockID.DIRT)
+                else:
+                    layer_index = (y - 13) // (layer_height + buffer)
+                    layer_index = min(layer_index, len(layers) - 1)
+                    
+                    primary_block = layers[layer_index]
+                    layer_start = 13 + layer_index * (layer_height + buffer)
+                    layer_end = layer_start + layer_height
+                    transition_top = layer_start - buffer
+                    transition_bottom = layer_end
 
-        # Then grass 
+                    if transition_top <= y < layer_start and layer_index > 0:
+                        above_block = layers[layer_index - 1]
+                        mix_prob = (y - transition_top) / buffer
+                        if self.get_block_id(x, y) == BlockID.STONE:
+                            self.set_block(x, y, above_block if random.random() > mix_prob else primary_block)
 
-        # Then 5x soil
+                    elif transition_bottom <= y < transition_bottom + buffer and layer_index < len(layers) - 1:
+                        below_block = layers[layer_index + 1]
+                        mix_prob = (transition_bottom + buffer - y) / buffer
+                        if self.get_block_id(x, y) == BlockID.STONE:
+                            self.set_block(x, y, below_block if random.random() > mix_prob else primary_block)
 
-        # Then do by layer
-
-        # Then rock + caves
+                    else:
+                        if self.get_block_id(x, y) == BlockID.STONE:
+                            self.set_block(x, y, primary_block)
 
 
 def area_to_xywh(area):
