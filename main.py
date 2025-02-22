@@ -26,11 +26,16 @@ class BlockID(Enum):
     DIRT = auto()
     STONE = auto()
 
+class OreID(Enum):
+    NONE = auto()
+    GOLD = auto()
+
 scroll_x, scroll_y = 0, 0
 player = None
 input = None
 mining_helper = None
 blocks_handler = None
+ore_handler = None
 enemies = []
 
 logging.basicConfig(
@@ -58,7 +63,7 @@ def is_colliding(x, y, is_falling):
     x2 = (pyxel.ceil(x) + 7) // 8
     y2 = (pyxel.ceil(y) + 7) // 8
 
-    print(x1, y1, x2, y2)
+    # print(x1, y1, x2, y2)
 
     # Check if player is completly in empty space!
     for yi in range(y1, y2 + 1):
@@ -189,6 +194,34 @@ class MiningHelper:
         self.current_block = None
         self.mining_hits = 0
 
+class Ores:
+    TEXTURES = {
+        OreID.NONE: (0, 0, 0, 0),
+        OreID.GOLD: (32, 80, 8, 8),
+    }
+
+    @staticmethod
+    def get_texture(ore_id):
+        return Ores.TEXTURES.get(ore_id, (0, 0, 0, 0))
+
+
+class OresHandler:
+    def __init__(self):
+        self.ores_map: dict[tuple[int, int], OreID] = {}
+        self.generate_ores()
+
+    def generate_ores(self):
+        for x in range(MAP_SIZE_BLOCKS_X):
+            for y in range(MAP_SIZE_BLOCKS_Y):
+                if random.random() < 0.1 and blocks_handler.get_block_id(x, y) == BlockID.STONE:
+                    self.ores_map[(x, y)] = OreID.GOLD
+
+    def get_ore_id(self, x, y):
+        return self.ores_map.get((x, y), OreID.NONE)
+
+    def destroy_ore(self, x, y):
+        self.ores_map[(x,y)] = OreID.NONE
+
 # === Static Block Data ===
 class Blocks:
     # Block properties stored in a dictionary (no instance data)
@@ -235,6 +268,7 @@ class BlocksHandler:
         if not self.is_in_range(block_x, block_y):
             return
         self.blocks_map[(block_x, block_y)] = BlockID.AIR
+        ore_handler.destroy_ore(block_x, block_y)
 
     def is_solid(self, block_x, block_y) -> bool:
         if not self.is_in_range(block_x, block_y):
@@ -245,7 +279,7 @@ class BlocksHandler:
         for i in range(MAP_SIZE_BLOCKS_X):
             for j in range(MAP_SIZE_BLOCKS_Y):
                 if j > 6:
-                    self.blocks_map[(i, j)] = BlockID.DIRT
+                    self.blocks_map[(i, j)] = BlockID.STONE
                     # self.blocks_map[(i, j)] = random.choice(list(BlockID))
                 else:
                     self.blocks_map[(i, j)] = BlockID.AIR
@@ -284,6 +318,12 @@ class BlocksHandler:
         screen_y = block_y * 8 - scroll_y
 
         pyxel.blt(screen_x, screen_y, 0, *block_image, TRANSPARENT_COLOR)
+
+        # Draw ore on block
+
+        ore_id = ore_handler.get_ore_id(block_x, block_y)
+        ore_image = Ores.get_texture(ore_id)
+        pyxel.blt(screen_x, screen_y, 0, *ore_image, TRANSPARENT_COLOR)
 
 
 class InputHandler:
@@ -342,7 +382,8 @@ class InputHandler:
             self.states[action]["long_pressed"] = held_now
         for key, state in self.states.items():
             if state["double_click"]:
-                print(key)
+                # print(key)
+                pass
 
     def is_pressed(self, action):
         return self.states[action]["pressed"]
@@ -486,11 +527,12 @@ class App:
         # Change enemy spawn tiles invisible
         pyxel.images[0].rect(0, 8, 24, 8, TRANSPARENT_COLOR)
 
-        global player, input, mining_helper, blocks_handler
+        global player, input, mining_helper, blocks_handler, ore_handler
         player = Player(0, 0)
         input = InputHandler()
         mining_helper = MiningHelper()
         blocks_handler = BlocksHandler()
+        ore_handler = OresHandler()
         pyxel.playm(0, loop=True)
         pyxel.run(self.update, self.draw)
 
