@@ -145,11 +145,14 @@ class InventoryHandler:
         return self.ores  # Returns only mined ores
     
     def draw_ui(self):
-        y_offset = 5
+        y_offset = 1
+        x_offset = 5
         for ore, count in self.get_inventory().items():
             ore_name = ore.name.capitalize()
-            pyxel.text(5, y_offset, f"{ore_name}: {count}", 7)
-            y_offset += 10  # Move down for next item
+            ore_ui_sprite = Ores.get_ui_sprite(ore)
+            pyxel.blt(scroll_x+ x_offset,scroll_y + y_offset,0, *ore_ui_sprite, TRANSPARENT_COLOR)
+            pyxel.text(scroll_x+x_offset+9, scroll_y+y_offset, f"x{count}", 7)
+            x_offset += 14  # Move down for next item
 
 class MiningHelper:
     def __init__(self, required_hits=45):
@@ -221,9 +224,18 @@ class Ores:
         OreID.GOLD: (32, 80, 8, 8),
     }
 
+    UI_SPRITES = {
+        OreID.NONE: (0, 0, 0, 0),
+        OreID.GOLD: (0, 80, 8, 8),
+    }
+
     @staticmethod
     def get_texture(ore_id):
         return Ores.TEXTURES.get(ore_id, (0, 0, 0, 0))
+    
+    @staticmethod
+    def get_ui_sprite(ore_id):
+        return Ores.UI_SPRITES.get(ore_id, (0, 0, 0, 0))
 
 
 class OresHandler:
