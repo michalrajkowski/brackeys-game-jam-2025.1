@@ -36,6 +36,7 @@ input = None
 mining_helper = None
 blocks_handler = None
 ore_handler = None
+inventory_handler = None
 enemies = []
 
 logging.basicConfig(
@@ -129,6 +130,26 @@ def cleanup_entities(entities):
         if not entities[i].is_alive:
             del entities[i]
 
+class InventoryHandler:
+    def __init__(self):
+        self.ores = {}  # Dictionary to store mined ores and their count
+
+    def collect_ore(self, ore_id):
+        if ore_id != OreID.NONE:
+            if ore_id in self.ores:
+                self.ores[ore_id] += 1
+            else:
+                self.ores[ore_id] = 1  # First time collecting this ore
+
+    def get_inventory(self):
+        return self.ores  # Returns only mined ores
+    
+    def draw_ui(self):
+        y_offset = 5
+        for ore, count in self.get_inventory().items():
+            ore_name = ore.name.capitalize()
+            pyxel.text(5, y_offset, f"{ore_name}: {count}", 7)
+            y_offset += 10  # Move down for next item
 
 class MiningHelper:
     def __init__(self, required_hits=45):
@@ -207,9 +228,8 @@ class Ores:
 
 class OresHandler:
     def __init__(self):
-        self.ores_map: dict[tuple[int, int], OreID] = {}
+        self.ores_map: dict[tuple[int, int], OreID] = {(x,y): OreID.NONE for x in range(MAP_SIZE_BLOCKS_X) for y in range(MAP_SIZE_BLOCKS_Y)}
         self.generate_ores()
-
     def generate_ores(self):
         for x in range(MAP_SIZE_BLOCKS_X):
             for y in range(MAP_SIZE_BLOCKS_Y):
@@ -220,6 +240,8 @@ class OresHandler:
         return self.ores_map.get((x, y), OreID.NONE)
 
     def destroy_ore(self, x, y):
+        if not self.ores_map[(x,y)] == OreID.NONE:
+            inventory_handler.collect_ore(self.ores_map[(x,y)])
         self.ores_map[(x,y)] = OreID.NONE
 
 # === Static Block Data ===
@@ -527,12 +549,13 @@ class App:
         # Change enemy spawn tiles invisible
         pyxel.images[0].rect(0, 8, 24, 8, TRANSPARENT_COLOR)
 
-        global player, input, mining_helper, blocks_handler, ore_handler
+        global player, input, mining_helper, blocks_handler, ore_handler, inventory_handler
         player = Player(0, 0)
         input = InputHandler()
         mining_helper = MiningHelper()
         blocks_handler = BlocksHandler()
         ore_handler = OresHandler()
+        inventory_handler = InventoryHandler()
         pyxel.playm(0, loop=True)
         pyxel.run(self.update, self.draw)
 
@@ -577,6 +600,9 @@ class App:
 
         # Draw gizmos
         mining_helper.draw()
+
+        # UI
+        inventory_handler.draw_ui()
 
 
 def game_over():

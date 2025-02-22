@@ -3,7 +3,7 @@ Block handler:
 
 
 # ORE_SYSTEM:
-- ore generate underground
++ ore generate underground
 - player can collect them
 - can be sold on top
 
