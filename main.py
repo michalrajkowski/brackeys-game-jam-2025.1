@@ -26,11 +26,19 @@ class BlockID(Enum):
     DIRT = auto()
     STONE = auto()
 
+class OreID(Enum):
+    NONE = auto()
+    GOLD = auto()
+    DIAMONDS = auto()
+
 scroll_x, scroll_y = 0, 0
 player = None
 input = None
 mining_helper = None
 blocks_handler = None
+ore_handler = None
+inventory_handler = None
+trigger_zones_handler = None
 enemies = []
 
 logging.basicConfig(
@@ -58,7 +66,7 @@ def is_colliding(x, y, is_falling):
     x2 = (pyxel.ceil(x) + 7) // 8
     y2 = (pyxel.ceil(y) + 7) // 8
 
-    print(x1, y1, x2, y2)
+    # print(x1, y1, x2, y2)
 
     # Check if player is completly in empty space!
     for yi in range(y1, y2 + 1):
@@ -124,6 +132,35 @@ def cleanup_entities(entities):
         if not entities[i].is_alive:
             del entities[i]
 
+class InventoryHandler:
+    def __init__(self):
+        self.ores = {}  # Dictionary to store mined ores and their count
+        self.player_money = 0
+
+    def collect_ore(self, ore_id):
+        if ore_id != OreID.NONE:
+            if ore_id in self.ores:
+                self.ores[ore_id] += 1
+            else:
+                self.ores[ore_id] = 1  # First time collecting this ore
+
+    def add_money(self, amount):
+        self.player_money+=amount
+    def clear(self):
+        self.ores = {}
+    def get_inventory(self):
+        return self.ores  # Returns only mined ores
+    
+    def draw_ui(self):
+        y_offset = 1
+        x_offset = 5
+        for ore, count in self.get_inventory().items():
+            ore_name = ore.name.capitalize()
+            ore_ui_sprite = Ores.get_ui_sprite(ore)
+            pyxel.blt(scroll_x+ x_offset,scroll_y + y_offset,0, *ore_ui_sprite, TRANSPARENT_COLOR)
+            pyxel.text(scroll_x+x_offset+9, scroll_y+y_offset, f"x{count}", 7)
+            x_offset += 16  # Move down for next item
+        pyxel.text(scroll_x+SCREEN_W-20, scroll_y, f"{self.player_money}$",7)
 
 class MiningHelper:
     def __init__(self, required_hits=45):
@@ -189,6 +226,57 @@ class MiningHelper:
         self.current_block = None
         self.mining_hits = 0
 
+class Ores:
+    TEXTURES = {
+        OreID.NONE: (0, 0, 0, 0),
+        OreID.GOLD: (32, 80, 8, 8),
+        OreID.DIAMONDS: (32, 96, 8, 8)
+    }
+
+    UI_SPRITES = {
+        OreID.NONE: (0, 0, 0, 0),
+        OreID.GOLD: (0, 80, 8, 8),
+        OreID.DIAMONDS: (8, 80, 8, 8)
+    }
+
+    BASE_VALUE = {
+        OreID.NONE: 0,
+        OreID.GOLD: 100,
+        OreID.DIAMONDS: 1000
+    }
+
+    @staticmethod
+    def get_texture(ore_id):
+        return Ores.TEXTURES.get(ore_id, (0, 0, 0, 0))
+    
+    @staticmethod
+    def get_ui_sprite(ore_id):
+        return Ores.UI_SPRITES.get(ore_id, (0, 0, 0, 0))
+    
+    @staticmethod
+    def get_base_value(ore_id):
+        return Ores.BASE_VALUE.get(ore_id, 0)
+
+class OresHandler:
+    def __init__(self):
+        self.ores_map: dict[tuple[int, int], OreID] = {(x,y): OreID.NONE for x in range(MAP_SIZE_BLOCKS_X) for y in range(MAP_SIZE_BLOCKS_Y)}
+        self.generate_ores()
+    def generate_ores(self):
+        for x in range(MAP_SIZE_BLOCKS_X):
+            for y in range(MAP_SIZE_BLOCKS_Y):
+                if random.random() < 0.1 and blocks_handler.get_block_id(x, y) == BlockID.STONE:
+                    self.ores_map[(x, y)] = OreID.GOLD
+                if random.random() < 0.1 and blocks_handler.get_block_id(x, y) == BlockID.STONE:
+                    self.ores_map[(x, y)] = OreID.DIAMONDS
+
+    def get_ore_id(self, x, y):
+        return self.ores_map.get((x, y), OreID.NONE)
+
+    def destroy_ore(self, x, y):
+        if not self.ores_map[(x,y)] == OreID.NONE:
+            inventory_handler.collect_ore(self.ores_map[(x,y)])
+        self.ores_map[(x,y)] = OreID.NONE
+
 # === Static Block Data ===
 class Blocks:
     # Block properties stored in a dictionary (no instance data)
@@ -235,6 +323,7 @@ class BlocksHandler:
         if not self.is_in_range(block_x, block_y):
             return
         self.blocks_map[(block_x, block_y)] = BlockID.AIR
+        ore_handler.destroy_ore(block_x, block_y)
 
     def is_solid(self, block_x, block_y) -> bool:
         if not self.is_in_range(block_x, block_y):
@@ -245,7 +334,7 @@ class BlocksHandler:
         for i in range(MAP_SIZE_BLOCKS_X):
             for j in range(MAP_SIZE_BLOCKS_Y):
                 if j > 6:
-                    self.blocks_map[(i, j)] = BlockID.DIRT
+                    self.blocks_map[(i, j)] = BlockID.STONE
                     # self.blocks_map[(i, j)] = random.choice(list(BlockID))
                 else:
                     self.blocks_map[(i, j)] = BlockID.AIR
@@ -285,6 +374,70 @@ class BlocksHandler:
 
         pyxel.blt(screen_x, screen_y, 0, *block_image, TRANSPARENT_COLOR)
 
+        # Draw ore on block
+
+        ore_id = ore_handler.get_ore_id(block_x, block_y)
+        ore_image = Ores.get_texture(ore_id)
+        pyxel.blt(screen_x, screen_y, 0, *ore_image, TRANSPARENT_COLOR)
+
+def area_to_xywh(area):
+    (x1,y1,x2,y2) = area
+    return (x1, y1, x2-x1, y2-y1)
+
+class TriggerZone:
+    def __init__(self, x1, y1, x2, y2, color=1, is_invisible=False):
+        self.area = (x1, y1, x2, y2)
+        self.color = color
+        self.is_invisible = is_invisible
+
+
+    def draw(self):
+        if self.is_invisible:
+            return
+        xywh_area = area_to_xywh(self.area)
+        pyxel.rect(*xywh_area, self.color)
+
+    def is_in_area(self, object_coords):
+        (o_x, o_y) = object_coords
+        (x1, y1, x2, y2) = self.area
+        return x1 <= o_x <= x2 and y1 <= o_y <= y2
+
+    def trigger(self):
+        logging.info(f"TriggerZone: {self} triggered!")
+
+class ShopZone(TriggerZone):
+    def __init__(self, x1, y1, x2, y2, color=1, is_invisible=False):
+        super().__init__(x1, y1, x2, y2, color, is_invisible)
+
+    def trigger(self):
+        super().trigger()
+        for ore, number in inventory_handler.get_inventory().items():
+            # Sell each ore
+            added_money = Ores.get_base_value(ore) * number
+            inventory_handler.add_money(added_money)
+
+        # Clear ores:
+        inventory_handler.clear()
+
+class TriggerZonesHandler:
+    def __init__(self):
+        self.trigger_zones : list[TriggerZone] = []
+        shop_zone : TriggerZone = ShopZone(0,0,40,16,2)
+        self.add_zone(shop_zone)
+    
+    def add_zone(self, zone : TriggerZone):
+        self.trigger_zones.append(zone)
+
+    def check_zones_player(self):
+        for zone in self.trigger_zones:
+            zone : TriggerZone = zone
+            if zone.is_in_area((player.x,player.y)):
+                zone.trigger()
+
+    def draw_zones(self):
+        for zone in self.trigger_zones:
+            zone.draw()
+            
 
 class InputHandler:
     def __init__(self, double_click_time=10, hold_time=5):
@@ -342,7 +495,8 @@ class InputHandler:
             self.states[action]["long_pressed"] = held_now
         for key, state in self.states.items():
             if state["double_click"]:
-                print(key)
+                # print(key)
+                pass
 
     def is_pressed(self, action):
         return self.states[action]["pressed"]
@@ -435,6 +589,9 @@ class Player:
 
         # Handle doubleclicks:
 
+        # Check for zones triggers
+        trigger_zones_handler.check_zones_player()
+
     # left, right, down
 
     # Marker blocks = blocks that are in player proximity if solid?
@@ -486,11 +643,14 @@ class App:
         # Change enemy spawn tiles invisible
         pyxel.images[0].rect(0, 8, 24, 8, TRANSPARENT_COLOR)
 
-        global player, input, mining_helper, blocks_handler
+        global player, input, mining_helper, blocks_handler, ore_handler, inventory_handler, trigger_zones_handler
         player = Player(0, 0)
         input = InputHandler()
         mining_helper = MiningHelper()
         blocks_handler = BlocksHandler()
+        ore_handler = OresHandler()
+        inventory_handler = InventoryHandler()
+        trigger_zones_handler = TriggerZonesHandler()
         pyxel.playm(0, loop=True)
         pyxel.run(self.update, self.draw)
 
@@ -533,8 +693,14 @@ class App:
         for enemy in enemies:
             enemy.draw()
 
+        # Trigger zones
+        trigger_zones_handler.draw_zones()
+
         # Draw gizmos
         mining_helper.draw()
+
+        # UI
+        inventory_handler.draw_ui()
 
 
 def game_over():
