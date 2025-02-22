@@ -25,6 +25,8 @@ class BlockID(Enum):
     GRASS = auto()
     DIRT = auto()
     STONE = auto()
+    HARD_STONE = auto()
+    MAGMA_ROCK = auto()
 
 class OreID(Enum):
     NONE = auto()
@@ -282,9 +284,11 @@ class Blocks:
     # Block properties stored in a dictionary (no instance data)
     TEXTURES = {
         BlockID.AIR: (48, 112, 8, 8),
-        BlockID.GRASS: (48, 104, 8, 8),
+        BlockID.GRASS: (48, 96, 8, 8),
         BlockID.DIRT: (48, 80, 8, 8),
         BlockID.STONE: (48, 64, 8, 8),
+        BlockID.HARD_STONE: (48, 128, 8, 8),
+        BlockID.MAGMA_ROCK: (48, 144, 8, 8),
     }
 
     SOLIDITY = {
@@ -292,6 +296,8 @@ class Blocks:
         BlockID.GRASS: True,
         BlockID.DIRT: True,
         BlockID.STONE: True,
+        BlockID.HARD_STONE: True,
+        BlockID.MAGMA_ROCK: True,
     }
 
     MINING_HITS = {
@@ -299,6 +305,8 @@ class Blocks:
         BlockID.GRASS: 5,
         BlockID.DIRT: 10,
         BlockID.STONE: 20,
+        BlockID.HARD_STONE: 50,
+        BlockID.MAGMA_ROCK: 200,
     }
 
     @staticmethod
