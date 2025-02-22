@@ -29,6 +29,7 @@ class BlockID(Enum):
 class OreID(Enum):
     NONE = auto()
     GOLD = auto()
+    DIAMONDS = auto()
 
 scroll_x, scroll_y = 0, 0
 player = None
@@ -152,7 +153,7 @@ class InventoryHandler:
             ore_ui_sprite = Ores.get_ui_sprite(ore)
             pyxel.blt(scroll_x+ x_offset,scroll_y + y_offset,0, *ore_ui_sprite, TRANSPARENT_COLOR)
             pyxel.text(scroll_x+x_offset+9, scroll_y+y_offset, f"x{count}", 7)
-            x_offset += 14  # Move down for next item
+            x_offset += 16  # Move down for next item
 
 class MiningHelper:
     def __init__(self, required_hits=45):
@@ -222,11 +223,13 @@ class Ores:
     TEXTURES = {
         OreID.NONE: (0, 0, 0, 0),
         OreID.GOLD: (32, 80, 8, 8),
+        OreID.DIAMONDS: (32, 96, 8, 8)
     }
 
     UI_SPRITES = {
         OreID.NONE: (0, 0, 0, 0),
         OreID.GOLD: (0, 80, 8, 8),
+        OreID.DIAMONDS: (8, 80, 8, 8)
     }
 
     @staticmethod
@@ -247,6 +250,8 @@ class OresHandler:
             for y in range(MAP_SIZE_BLOCKS_Y):
                 if random.random() < 0.1 and blocks_handler.get_block_id(x, y) == BlockID.STONE:
                     self.ores_map[(x, y)] = OreID.GOLD
+                if random.random() < 0.1 and blocks_handler.get_block_id(x, y) == BlockID.STONE:
+                    self.ores_map[(x, y)] = OreID.DIAMONDS
 
     def get_ore_id(self, x, y):
         return self.ores_map.get((x, y), OreID.NONE)
