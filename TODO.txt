@@ -15,7 +15,8 @@ Block handler:
 - danger-o-meter triggers negative effects
 - danger-o-meter rises with game time
 
-# 
+# Add random corridors to the map
+- 
 
 
 (Unbreakable floor and mine entrance)

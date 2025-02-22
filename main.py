@@ -8,7 +8,7 @@ from enum import Enum, auto
 import random
 
 SCREEN_W, SCREEN_H = (128, 128)
-MAP_SIZE_BLOCKS_X, MAP_SIZE_BLOCKS_Y = 256, 256
+MAP_SIZE_BLOCKS_X, MAP_SIZE_BLOCKS_Y = 90, 150
 
 TRANSPARENT_COLOR = 2
 SCROLL_BORDER_X = 80
@@ -329,6 +329,7 @@ class BlocksHandler:
         # Initialze variants:
         self.variants_map = {(x,y) : random.randint(0,3) for x in range(MAP_SIZE_BLOCKS_X) for y in range(MAP_SIZE_BLOCKS_Y)}
         self.generate_map()
+        self.generate_caves()
 
     def destroy_block(self, block_x, block_y):
         if not self.is_in_range(block_x, block_y):
@@ -345,7 +346,7 @@ class BlocksHandler:
         for i in range(MAP_SIZE_BLOCKS_X):
             for j in range(MAP_SIZE_BLOCKS_Y):
                 if j > 6:
-                    self.blocks_map[(i, j)] = BlockID.STONE
+                    self.blocks_map[(i, j)] = BlockID.AIR
                     # self.blocks_map[(i, j)] = random.choice(list(BlockID))
                 else:
                     self.blocks_map[(i, j)] = BlockID.AIR
@@ -395,6 +396,41 @@ class BlocksHandler:
         ore_id = ore_handler.get_ore_id(block_x, block_y)
         ore_image = Ores.get_texture(ore_id)
         pyxel.blt(screen_x, screen_y, 0, *ore_image, TRANSPARENT_COLOR)
+
+    def generate_caves(self, fill_probability=70, iterations=5):
+        for y in range(MAP_SIZE_BLOCKS_Y):
+            for x in range(MAP_SIZE_BLOCKS_X):
+                if random.randint(0, 100) < fill_probability:
+                    self.set_block(x,y, BlockID.STONE)
+                else:
+                    self.set_block(x,y, BlockID.AIR)
+
+        for _ in range(iterations):
+            new_blocks_map : dict[tuple[int, int], BlockID] = {} 
+            for y in range(1, MAP_SIZE_BLOCKS_Y-1):
+                for x in range(1, MAP_SIZE_BLOCKS_X-1):
+                    # Count walls around
+                    walls = sum(1 for dy in range(-1, 2) for dx in range(-1, 2)
+                                if self.get_block_id(x+dx,y+dy) == BlockID.STONE and (dx != 0 or dy != 0))
+                    
+                    if walls >= 5:
+                        new_blocks_map[(x,y)] = BlockID.STONE
+                    else:
+                        new_blocks_map[(x,y)] = BlockID.AIR
+            self.blocks_map = new_blocks_map
+
+#     def rocks_gradient_changer(self, layer_height = 40):
+        # first 10 == air
+#        for x in range()
+
+        # Then grass 
+
+        # Then 5x soil
+
+        # Then do by layer
+
+        # Then rock + caves
+
 
 def area_to_xywh(area):
     (x1,y1,x2,y2) = area
@@ -554,12 +590,12 @@ class Player:
         self.dx = int(self.dx * 0.8)
         self.is_falling = self.y > last_y
 
-        self.x = clamp(self.x, 0, 248 * 8)
-        self.y = clamp(self.y, 0, 248 * 8)
+        self.x = clamp(self.x, 0, MAP_SIZE_BLOCKS_X * 8)
+        self.y = clamp(self.y, 0, MAP_SIZE_BLOCKS_Y * 8)
 
         if self.x > scroll_x + SCROLL_BORDER_X:
             last_scroll_x = scroll_x
-            scroll_x = min(self.x - SCROLL_BORDER_X, 240 * 8)
+            scroll_x = min(self.x - SCROLL_BORDER_X, (MAP_SIZE_BLOCKS_X-8) * 8)
             # spawn_enemy(last_scroll_x + 128, scroll_x + 127)
         if self.x < scroll_x + (SCREEN_W - SCROLL_BORDER_X):
             last_scroll_x = scroll_x
@@ -567,7 +603,7 @@ class Player:
             # spawn_enemy(last_scroll_x + 128, scroll_x + 127)
         if self.y > scroll_y + SCROLL_BORDER_Y:
             last_scroll_y = scroll_y
-            scroll_y = min(self.y - SCROLL_BORDER_Y, 240 * 8)
+            scroll_y = min(self.y - SCROLL_BORDER_Y, (MAP_SIZE_BLOCKS_Y-8) * 8)
             # spawn_enemy(last_scroll_x + 128, scroll_x + 127)
         if self.y < scroll_y + (SCREEN_H - SCROLL_BORDER_Y):
             last_scroll_y = scroll_y
