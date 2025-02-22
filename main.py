@@ -135,6 +135,7 @@ def cleanup_entities(entities):
 class InventoryHandler:
     def __init__(self):
         self.ores = {}  # Dictionary to store mined ores and their count
+        self.player_money = 0
 
     def collect_ore(self, ore_id):
         if ore_id != OreID.NONE:
@@ -143,6 +144,10 @@ class InventoryHandler:
             else:
                 self.ores[ore_id] = 1  # First time collecting this ore
 
+    def add_money(self, amount):
+        self.player_money+=amount
+    def clear(self):
+        self.ores = {}
     def get_inventory(self):
         return self.ores  # Returns only mined ores
     
@@ -155,6 +160,7 @@ class InventoryHandler:
             pyxel.blt(scroll_x+ x_offset,scroll_y + y_offset,0, *ore_ui_sprite, TRANSPARENT_COLOR)
             pyxel.text(scroll_x+x_offset+9, scroll_y+y_offset, f"x{count}", 7)
             x_offset += 16  # Move down for next item
+        pyxel.text(scroll_x+SCREEN_W-20, scroll_y, f"{self.player_money}$",7)
 
 class MiningHelper:
     def __init__(self, required_hits=45):
@@ -233,6 +239,12 @@ class Ores:
         OreID.DIAMONDS: (8, 80, 8, 8)
     }
 
+    BASE_VALUE = {
+        OreID.NONE: 0,
+        OreID.GOLD: 100,
+        OreID.DIAMONDS: 1000
+    }
+
     @staticmethod
     def get_texture(ore_id):
         return Ores.TEXTURES.get(ore_id, (0, 0, 0, 0))
@@ -240,7 +252,10 @@ class Ores:
     @staticmethod
     def get_ui_sprite(ore_id):
         return Ores.UI_SPRITES.get(ore_id, (0, 0, 0, 0))
-
+    
+    @staticmethod
+    def get_base_value(ore_id):
+        return Ores.BASE_VALUE.get(ore_id, 0)
 
 class OresHandler:
     def __init__(self):
@@ -390,10 +405,24 @@ class TriggerZone:
     def trigger(self):
         logging.info(f"TriggerZone: {self} triggered!")
 
+class ShopZone(TriggerZone):
+    def __init__(self, x1, y1, x2, y2, color=1, is_invisible=False):
+        super().__init__(x1, y1, x2, y2, color, is_invisible)
+
+    def trigger(self):
+        super().trigger()
+        for ore, number in inventory_handler.get_inventory().items():
+            # Sell each ore
+            added_money = Ores.get_base_value(ore) * number
+            inventory_handler.add_money(added_money)
+
+        # Clear ores:
+        inventory_handler.clear()
+
 class TriggerZonesHandler:
     def __init__(self):
         self.trigger_zones : list[TriggerZone] = []
-        shop_zone : TriggerZone = TriggerZone(0,0,40,16,1)
+        shop_zone : TriggerZone = ShopZone(0,0,40,16,2)
         self.add_zone(shop_zone)
     
     def add_zone(self, zone : TriggerZone):
