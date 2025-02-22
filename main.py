@@ -38,6 +38,7 @@ mining_helper = None
 blocks_handler = None
 ore_handler = None
 inventory_handler = None
+trigger_zones_handler = None
 enemies = []
 
 logging.basicConfig(
@@ -364,6 +365,50 @@ class BlocksHandler:
         ore_image = Ores.get_texture(ore_id)
         pyxel.blt(screen_x, screen_y, 0, *ore_image, TRANSPARENT_COLOR)
 
+def area_to_xywh(area):
+    (x1,y1,x2,y2) = area
+    return (x1, y1, x2-x1, y2-y1)
+
+class TriggerZone:
+    def __init__(self, x1, y1, x2, y2, color=1, is_invisible=False):
+        self.area = (x1, y1, x2, y2)
+        self.color = color
+        self.is_invisible = is_invisible
+
+
+    def draw(self):
+        if self.is_invisible:
+            return
+        xywh_area = area_to_xywh(self.area)
+        pyxel.rect(*xywh_area, self.color)
+
+    def is_in_area(self, object_coords):
+        (o_x, o_y) = object_coords
+        (x1, y1, x2, y2) = self.area
+        return x1 <= o_x <= x2 and y1 <= o_y <= y2
+
+    def trigger(self):
+        logging.info(f"TriggerZone: {self} triggered!")
+
+class TriggerZonesHandler:
+    def __init__(self):
+        self.trigger_zones : list[TriggerZone] = []
+        shop_zone : TriggerZone = TriggerZone(0,0,40,16,1)
+        self.add_zone(shop_zone)
+    
+    def add_zone(self, zone : TriggerZone):
+        self.trigger_zones.append(zone)
+
+    def check_zones_player(self):
+        for zone in self.trigger_zones:
+            zone : TriggerZone = zone
+            if zone.is_in_area((player.x,player.y)):
+                zone.trigger()
+
+    def draw_zones(self):
+        for zone in self.trigger_zones:
+            zone.draw()
+            
 
 class InputHandler:
     def __init__(self, double_click_time=10, hold_time=5):
@@ -515,6 +560,9 @@ class Player:
 
         # Handle doubleclicks:
 
+        # Check for zones triggers
+        trigger_zones_handler.check_zones_player()
+
     # left, right, down
 
     # Marker blocks = blocks that are in player proximity if solid?
@@ -566,13 +614,14 @@ class App:
         # Change enemy spawn tiles invisible
         pyxel.images[0].rect(0, 8, 24, 8, TRANSPARENT_COLOR)
 
-        global player, input, mining_helper, blocks_handler, ore_handler, inventory_handler
+        global player, input, mining_helper, blocks_handler, ore_handler, inventory_handler, trigger_zones_handler
         player = Player(0, 0)
         input = InputHandler()
         mining_helper = MiningHelper()
         blocks_handler = BlocksHandler()
         ore_handler = OresHandler()
         inventory_handler = InventoryHandler()
+        trigger_zones_handler = TriggerZonesHandler()
         pyxel.playm(0, loop=True)
         pyxel.run(self.update, self.draw)
 
@@ -614,6 +663,9 @@ class App:
         player.draw_block_markers()
         for enemy in enemies:
             enemy.draw()
+
+        # Trigger zones
+        trigger_zones_handler.draw_zones()
 
         # Draw gizmos
         mining_helper.draw()

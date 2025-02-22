@@ -2,10 +2,18 @@ Speedrun:
 Block handler:
 
 
-# ORE_SYSTEM:
+# ORE_SYSTEM -- DONE --
 + ore generate underground
-- player can collect them
++ player can collect them
 - can be sold on top
+    - when player enterns certain area, his items are sold. 
+    - he gets gold based of that
+
+# DANGER-O-METER
+- after during each %10 mining we trigger a hit
+- hits add up to denger-o-METER
+- danger-o-meter triggers negative effects
+- danger-o-meter rises with game time
 
 
 Block minig mechanics:
