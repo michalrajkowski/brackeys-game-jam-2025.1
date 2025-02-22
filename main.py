@@ -1,10 +1,14 @@
 # Code was based on: https://github.com/kitao/pyxel/blob/main/python/pyxel/examples/10_platformer.py
 
+
 import pyxel
 import math
 import logging
+from enum import Enum, auto
+import random
 
 SCREEN_W, SCREEN_H = (128, 128)
+MAP_SIZE_BLOCKS_X, MAP_SIZE_BLOCKS_Y = 256, 256
 
 TRANSPARENT_COLOR = 2
 SCROLL_BORDER_X = 80
@@ -16,43 +20,60 @@ TILE_SPAWN3 = (2, 1)
 WALL_TILE_X = 4
 VOID_TILE = (0,0)
 
+class BlockID(Enum):
+    AIR = auto()
+    GRASS = auto()
+    DIRT = auto()
+    STONE = auto()
+
 scroll_x, scroll_y = 0, 0
 player = None
 input = None
 mining_helper = None
+blocks_handler = None
 enemies = []
 
 logging.basicConfig(
     level=logging.DEBUG,  # Set the log level to DEBUG (or another level like INFO, WARNING)
-    format='%(asctime)s - %(levelname)s - %(message)s',  # Include timestamp, log level, and message
-    datefmt='%Y-%m-%d %H:%M:%S',  # Format for the timestamp
+    format="%(asctime)s - %(levelname)s - %(message)s",  # Include timestamp, log level, and message
+    datefmt="%Y-%m-%d %H:%M:%S",  # Format for the timestamp
 )
+
 
 def clamp(value, min_value, max_value):
     return max(min_value, min(value, max_value))
+
 
 def get_tile(tile_x, tile_y):
     return pyxel.tilemaps[1].pget(tile_x, tile_y)
 
 def destroy_block(tile_x,tile_y):
-    pyxel.tilemap(1).pset(tile_x, tile_y, VOID_TILE)
+    blocks_handler.destroy_block(tile_x, tile_y)
+
 
 def is_colliding(x, y, is_falling):
-    x1 = pyxel.floor(x) // 8
-    y1 = (pyxel.floor(y)+1) // 8
+    # Get player new bounding box:
+    x1 = pyxel.floor(x) // 8 
+    y1 = (pyxel.floor(y)) // 8
     x2 = (pyxel.ceil(x) + 7) // 8
     y2 = (pyxel.ceil(y) + 7) // 8
+
+    print(x1, y1, x2, y2)
+
+    # Check if player is completly in empty space!
     for yi in range(y1, y2 + 1):
         for xi in range(x1, x2 + 1):
-            if get_tile(xi, yi)[0] >= WALL_TILE_X:
+            if blocks_handler.is_solid(xi, yi):
                 return True
-    if is_falling and y % 8 == 1:
-        for xi in range(x1, x2 + 1):
-            if get_tile(xi, y1 + 1) == TILE_FLOOR:
-                return True
+    
+    # Legacy code!
+    # if is_falling and y % 8 == 1:
+    #     for xi in range(x1, x2 + 1):
+    #         if get_tile(xi, y1 + 1) == TILE_FLOOR:
+    #             return True
     return False
 
-def is_close_enough(entity_x, entity_y, block_x, block_y, proximity=2):
+def is_close_enough(entity_x, entity_y, block_x, block_y, proximity=4):
     # Define the entity's bounding box corners
     entity_corners = [
         (entity_x, entity_y),  # top-left
@@ -60,7 +81,7 @@ def is_close_enough(entity_x, entity_y, block_x, block_y, proximity=2):
         (entity_x, entity_y + 7),  # bottom-left
         (entity_x + 7, entity_y + 7),  # bottom-right
     ]
-    
+
     # Define the block's bounding box corners
     block_corners = [
         (block_x, block_y),  # top-left
@@ -68,15 +89,16 @@ def is_close_enough(entity_x, entity_y, block_x, block_y, proximity=2):
         (block_x, block_y + 7),  # bottom-left
         (block_x + 7, block_y + 7),  # bottom-right
     ]
-    
+
     # Check if any corner of the entity is within the proximity of the block
     for ex, ey in entity_corners:
         for bx, by in block_corners:
             # Check if the distance between entity corner and block corner is within proximity
             if abs(ex - bx) <= proximity and abs(ey - by) <= proximity:
                 return True  # Entity is close enough to the block
-                
+
     return False  # No proximity found
+
 
 def push_back(x, y, dx, dy):
     for _ in range(pyxel.ceil(abs(dy))):
@@ -94,29 +116,14 @@ def push_back(x, y, dx, dy):
     return x, y
 
 
-def is_wall(x, y):
-    tile = get_tile(x // 8, y // 8)
-    return tile == TILE_FLOOR or tile[0] >= WALL_TILE_X
-
-
-def spawn_enemy(left_x, right_x):
-    left_x = pyxel.ceil(left_x / 8)
-    right_x = pyxel.floor(right_x / 8)
-    for x in range(left_x, right_x + 1):
-        for y in range(16):
-            tile = get_tile(x, y)
-            if tile == TILE_SPAWN1:
-                enemies.append(Enemy1(x * 8, y * 8))
-            elif tile == TILE_SPAWN2:
-                enemies.append(Enemy2(x * 8, y * 8))
-            elif tile == TILE_SPAWN3:
-                enemies.append(Enemy3(x * 8, y * 8))
-
+def is_wall(block_x, block_y):
+    return blocks_handler.is_solid(block_x, block_y)
 
 def cleanup_entities(entities):
     for i in range(len(entities) - 1, -1, -1):
         if not entities[i].is_alive:
             del entities[i]
+
 
 class MiningHelper:
     def __init__(self, required_hits=45):
@@ -125,19 +132,19 @@ class MiningHelper:
         self.required_hits = required_hits
 
     def mine(self, x, y):
-        block_pos = (x // 8, y // 8)
+        block_pos = (x, y)
         
         if self.current_block != block_pos:
             self.current_block = block_pos
             self.mining_hits = 0  # Reset progress when switching blocks
-        
+
         self.mining_hits += 1
-        
+
         if self.mining_hits >= self.required_hits:
             destroy_block(block_pos[0], block_pos[1])
             self.current_block = None
             self.mining_hits = 0
-    
+
     def draw(self):
         if not self.current_block:
             return
@@ -177,10 +184,107 @@ class MiningHelper:
                 pyxel.pset(x - 1, y + 7 - i, 7)  # Filled dot
             else:
                 pyxel.pset(x - 1, y + 7 - i, 13)  # Unfilled dot
-    
+
     def reset(self):
         self.current_block = None
         self.mining_hits = 0
+
+# === Static Block Data ===
+class Blocks:
+    # Block properties stored in a dictionary (no instance data)
+    TEXTURES = {
+        BlockID.AIR: (48, 112, 8, 8),
+        BlockID.GRASS: (48, 104, 8, 8),
+        BlockID.DIRT: (48, 80, 8, 8),
+        BlockID.STONE: (48, 64, 8, 8),
+    }
+
+    SOLIDITY = {
+        BlockID.AIR: False,
+        BlockID.GRASS: True,
+        BlockID.DIRT: True,
+        BlockID.STONE: True,
+    }
+
+    MINING_HITS = {
+        BlockID.AIR: 0,
+        BlockID.GRASS: 5,
+        BlockID.DIRT: 10,
+        BlockID.STONE: 20,
+    }
+
+    @staticmethod
+    def get_texture(block_id):
+        return Blocks.TEXTURES.get(block_id, (0, 0, 0, 0))
+
+    @staticmethod
+    def is_solid(block_id):
+        return Blocks.SOLIDITY.get(block_id, True)
+
+    @staticmethod
+    def get_mining_hits(block_id):
+        return Blocks.MINING_HITS.get(block_id, 0)
+
+# === Block Map Handler ===
+class BlocksHandler:
+    def __init__(self):
+        self.blocks_map: dict[tuple[int, int], BlockID] = {}
+        self.generate_map()
+
+    def destroy_block(self, block_x, block_y):
+        if not self.is_in_range(block_x, block_y):
+            return
+        self.blocks_map[(block_x, block_y)] = BlockID.AIR
+
+    def is_solid(self, block_x, block_y) -> bool:
+        if not self.is_in_range(block_x, block_y):
+            return False
+        return Blocks.is_solid(self.get_block_id(block_x, block_y))
+
+    def generate_map(self):
+        for i in range(MAP_SIZE_BLOCKS_X):
+            for j in range(MAP_SIZE_BLOCKS_Y):
+                if j > 6:
+                    self.blocks_map[(i, j)] = BlockID.DIRT
+                    # self.blocks_map[(i, j)] = random.choice(list(BlockID))
+                else:
+                    self.blocks_map[(i, j)] = BlockID.AIR
+    def is_in_range(self, block_x, block_y):
+        return 0 <= block_x < MAP_SIZE_BLOCKS_X and 0 <= block_y < MAP_SIZE_BLOCKS_Y
+
+    def set_block(self, block_x, block_y, block_id):
+        if self.is_in_range(block_x, block_y):
+            self.blocks_map[(block_x, block_y)] = block_id
+
+    def get_block_id(self, block_x, block_y):
+        return self.blocks_map.get((block_x, block_y), BlockID.AIR)
+
+    def get_block_image(self, block_x, block_y):
+        block_id = self.get_block_id(block_x, block_y)
+        return Blocks.get_texture(block_id)
+
+    def draw(self):
+        start_x = scroll_x // 8 - 1
+        start_y = scroll_y // 8 - 1
+        end_x = (scroll_x + 128) // 8 + 1
+        end_y = (scroll_y + 128) // 8 + 1
+
+        for block_x in range(start_x, end_x + 1):
+            for block_y in range(start_y, end_y + 1):
+                self.draw_block(block_x, block_y, scroll_x, scroll_y)
+
+    def draw_block(self, block_x, block_y, scroll_x, scroll_y):
+        if not self.is_in_range(block_x, block_y):
+            return
+
+        block_image = self.get_block_image(block_x, block_y)
+        
+        # Convert block grid position to screen position
+        screen_x = block_x * 8 - scroll_x
+        screen_y = block_y * 8 - scroll_y
+
+        pyxel.blt(screen_x, screen_y, 0, *block_image, TRANSPARENT_COLOR)
+
 
 class InputHandler:
     def __init__(self, double_click_time=10, hold_time=5):
@@ -188,9 +292,23 @@ class InputHandler:
             "left": [pyxel.KEY_LEFT, pyxel.KEY_A, pyxel.GAMEPAD1_BUTTON_DPAD_LEFT],
             "right": [pyxel.KEY_RIGHT, pyxel.KEY_D, pyxel.GAMEPAD1_BUTTON_DPAD_RIGHT],
             "down": [pyxel.KEY_DOWN, pyxel.KEY_S, pyxel.GAMEPAD1_BUTTON_DPAD_DOWN],
-            "jump": [pyxel.KEY_SPACE, pyxel.KEY_W, pyxel.GAMEPAD1_BUTTON_DPAD_UP, pyxel.GAMEPAD1_BUTTON_A],
+            "jump": [
+                pyxel.KEY_SPACE,
+                pyxel.KEY_W,
+                pyxel.GAMEPAD1_BUTTON_DPAD_UP,
+                pyxel.GAMEPAD1_BUTTON_A,
+            ],
         }
-        self.states = {key: {"pressed": False,"long_pressed":False, "held": False, "double_click": False, "last_press_time": -double_click_time} for key in self.keys}
+        self.states = {
+            key: {
+                "pressed": False,
+                "long_pressed": False,
+                "held": False,
+                "double_click": False,
+                "last_press_time": -double_click_time,
+            }
+            for key in self.keys
+        }
         self.double_click_time = double_click_time
         self.hold_time = hold_time
         self.hold_counters = {key: 0 for key in self.keys}
@@ -203,14 +321,19 @@ class InputHandler:
             # Double Click Detection
             self.states[action]["double_click"] = False
             if pressed_now:
-                if pyxel.frame_count - self.states[action]["last_press_time"] <= self.double_click_time:
+                if (
+                    pyxel.frame_count - self.states[action]["last_press_time"]
+                    <= self.double_click_time
+                ):
                     self.states[action]["double_click"] = True
                 self.states[action]["last_press_time"] = pyxel.frame_count
 
             # Holding Detection
             if held_now:
                 self.hold_counters[action] += 1
-                self.states[action]["held"] = self.hold_counters[action] >= self.hold_time
+                self.states[action]["held"] = (
+                    self.hold_counters[action] >= self.hold_time
+                )
             else:
                 self.hold_counters[action] = 0
                 self.states[action]["held"] = False
@@ -232,6 +355,7 @@ class InputHandler:
 
     def is_double_click(self, action):
         return self.states[action]["double_click"]
+
 
 class Player:
     def __init__(self, x, y):
@@ -260,8 +384,8 @@ class Player:
         self.dx = int(self.dx * 0.8)
         self.is_falling = self.y > last_y
 
-        self.x = clamp(self.x, 0, 248*8)
-        self.y = clamp(self.y, 0, 248*8)
+        self.x = clamp(self.x, 0, 248 * 8)
+        self.y = clamp(self.y, 0, 248 * 8)
 
         if self.x > scroll_x + SCROLL_BORDER_X:
             last_scroll_x = scroll_x
@@ -285,21 +409,25 @@ class Player:
         # 1. Look at held direction
         # 2. Look at marked block (proximity + blocktype)
         # 3. Start mining it if it is valid!
-        marked_blocks_dict = self.get_marker_blocks_dict()
+        marked_blocks = self.get_marker_blocks()
         pre_mining_progress = mining_helper.mining_hits
-        for key,state in input.states.items():
+        for key, state in input.states.items():
             if input.is_held(key):
-                # try to mine
-                if key not in marked_blocks_dict.keys():
-                    continue 
-                if not is_wall(*marked_blocks_dict[key]):
+                # get marked blocks assiciated with key
+                mined_blocks_coords = None
+                for blocks in marked_blocks:
+                    if blocks[2] == key:
+                        mined_blocks_coords = (blocks[0], blocks[1])
+                        print("FOUND!")
+                        break
+                if mined_blocks_coords == None:
+                    continue
+                if not is_wall(*mined_blocks_coords):
                     continue
                 # Proximity check:
-                if not is_close_enough(self.x, self.y, *marked_blocks_dict[key]):
-                    continue
                 logging.debug("Possible to mine!")
                 # Mine, mine, mine!
-                mining_helper.mine(marked_blocks_dict[key][0], marked_blocks_dict[key][1])                
+                mining_helper.mine(*mined_blocks_coords)                
                 break
         if not (mining_helper.mining_hits > pre_mining_progress):
             # Reset mining
@@ -308,143 +436,47 @@ class Player:
         # Handle doubleclicks:
 
     # left, right, down
-    def get_marker_blocks(self):
-        # Calculate bottom marker position
-        y_bottom = ((pyxel.ceil(self.y) + 7) // 8 + 1) * 8
-        x_bottom = ((pyxel.floor(self.x + 4)) // 8) *8 # Centered below player
-        
-        # Determine closest horizontal tile (left or right)
-        x_left = ((pyxel.floor(self.x)) // 8)*8 - 8
-        x_right = ((pyxel.ceil(self.x) + 7) // 8)*8 + 8 
-        y_same = (pyxel.floor(self.y) // 8)*8
 
-        marker_blocks = ((x_left,y_same),(x_right,y_same),(x_bottom, y_bottom))
-        return marker_blocks
-    def get_marker_blocks_dict(self):
-        (left, right, down) = self.get_marker_blocks()
-        marker_blocks = {
-            "left": left,
-            "right": right,
-            "down": down
-        }
+    # Marker blocks = blocks that are in player proximity if solid?
+    def get_marker_blocks(self):
+        player_middle_x,player_middle_y = pyxel.floor(self.x + 4), pyxel.floor(self.y + 4)
+
+        directions = [(0, 1),(0, -1),(1, 0),(-1, 0)]
+        directions_names = ["down","jump","right","left"]
+        neighbour_points = [(player_middle_x + dx * 8, player_middle_y + dy * 8, directions_names[directions.index((dx,dy))]) for dx, dy in directions]
+
+        marker_blocks = []
+        for nei_point in neighbour_points:
+            (px, py, dir_name) = nei_point
+            bx, by = px//8, py//8
+            if not blocks_handler.is_solid(bx, by):
+                continue
+            if not is_close_enough(self.x, self.y, bx*8, by*8):
+                continue
+            marker_blocks.append((bx, by, dir_name))
         return marker_blocks
 
     def draw(self):
         u = (2 if self.is_falling else pyxel.frame_count // 3 % 2) * 8
         w = 8 if self.direction > 0 else -8
         pyxel.blt(self.x, self.y, 0, u, 16, w, 8, TRANSPARENT_COLOR)
-    
+
     def draw_block_markers(self):
         # Define the marker graphics
         marker_graphic = (0, 64, 8, 8)
         marker_graphic_hit = (8, 64, 8, 8)
         
-        (block_left, block_right, block_down) = self.get_marker_blocks()
-        horizontal_block = block_left if self.direction < 0 else block_right
+        marker_blocks = self.get_marker_blocks()
         
         # Determine the correct marker based on mining hits
-        if mining_helper.current_block and ((mining_helper.mining_hits)% 30 < 7):
+        if mining_helper.current_block and ((mining_helper.mining_hits) % 30 < 7):
             marker = marker_graphic_hit
         else:
             marker = marker_graphic
         
-        # Draw the markers
-        pyxel.blt(horizontal_block[0], horizontal_block[1], 0, *marker, TRANSPARENT_COLOR)
-        pyxel.blt(block_down[0], block_down[1], 0, *marker, TRANSPARENT_COLOR)
-
-
-class Enemy1:
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-        self.dx = 0
-        self.dy = 0
-        self.direction = -1
-        self.is_alive = True
-
-    def update(self):
-        self.dx = self.direction
-        self.dy = min(self.dy + 1, 3)
-        if self.direction < 0 and is_wall(self.x - 1, self.y + 4):
-            self.direction = 1
-        elif self.direction > 0 and is_wall(self.x + 8, self.y + 4):
-            self.direction = -1
-        self.x, self.y = push_back(self.x, self.y, self.dx, self.dy)
-
-    def draw(self):
-        u = pyxel.frame_count // 4 % 2 * 8
-        w = 8 if self.direction > 0 else -8
-        pyxel.blt(self.x, self.y, 0, u, 24, w, 8, TRANSPARENT_COLOR)
-
-
-class Enemy2:
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-        self.dx = 0
-        self.dy = 0
-        self.direction = 1
-        self.is_alive = True
-
-    def update(self):
-        self.dx = self.direction
-        self.dy = min(self.dy + 1, 3)
-        if is_wall(self.x, self.y + 8) or is_wall(self.x + 7, self.y + 8):
-            if self.direction < 0 and (
-                is_wall(self.x - 1, self.y + 4) or not is_wall(self.x - 1, self.y + 8)
-            ):
-                self.direction = 1
-            elif self.direction > 0 and (
-                is_wall(self.x + 8, self.y + 4) or not is_wall(self.x + 7, self.y + 8)
-            ):
-                self.direction = -1
-        self.x, self.y = push_back(self.x, self.y, self.dx, self.dy)
-
-    def draw(self):
-        u = pyxel.frame_count // 4 % 2 * 8 + 16
-        w = 8 if self.direction > 0 else -8
-        pyxel.blt(self.x, self.y, 0, u, 24, w, 8, TRANSPARENT_COLOR)
-
-
-class Enemy3:
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-        self.time_to_fire = 0
-        self.is_alive = True
-
-    def update(self):
-        self.time_to_fire -= 1
-        if self.time_to_fire <= 0:
-            dx = player.x - self.x
-            dy = player.y - self.y
-            sq_dist = dx * dx + dy * dy
-            if sq_dist < 60**2:
-                dist = pyxel.sqrt(sq_dist)
-                enemies.append(Enemy3Bullet(self.x, self.y, dx / dist, dy / dist))
-                self.time_to_fire = 60
-
-    def draw(self):
-        u = pyxel.frame_count // 8 % 2 * 8
-        pyxel.blt(self.x, self.y, 0, u, 32, 8, 8, TRANSPARENT_COLOR)
-
-
-class Enemy3Bullet:
-    def __init__(self, x, y, dx, dy):
-        self.x = x
-        self.y = y
-        self.dx = dx
-        self.dy = dy
-        self.is_alive = True
-
-    def update(self):
-        self.x += self.dx
-        self.y += self.dy
-
-    def draw(self):
-        u = pyxel.frame_count // 2 % 2 * 8 + 16
-        pyxel.blt(self.x, self.y, 0, u, 32, 8, 8, TRANSPARENT_COLOR)
-
+        for block in marker_blocks:
+            (bx, by, block_name) = block
+            pyxel.blt(bx*8, by*8, 0, *marker, TRANSPARENT_COLOR)
 
 class App:
     def __init__(self):
@@ -454,11 +486,11 @@ class App:
         # Change enemy spawn tiles invisible
         pyxel.images[0].rect(0, 8, 24, 8, TRANSPARENT_COLOR)
 
-        global player, input, mining_helper
+        global player, input, mining_helper, blocks_handler
         player = Player(0, 0)
         input = InputHandler()
         mining_helper = MiningHelper()
-        spawn_enemy(0, 127)
+        blocks_handler = BlocksHandler()
         pyxel.playm(0, loop=True)
         pyxel.run(self.update, self.draw)
 
@@ -466,7 +498,7 @@ class App:
         if pyxel.btn(pyxel.KEY_Q):
             pyxel.quit()
 
-        input.update() 
+        input.update()
         player.update()
         for enemy in enemies:
             if abs(player.x - enemy.x) < 6 and abs(player.y - enemy.y) < 6:
@@ -482,13 +514,16 @@ class App:
 
         # Draw level
         pyxel.camera()
-        pyxel.bltm(0, 0, 2, (scroll_x // 4) % 128, (scroll_y // 4) % 128, 128, 128) # Background
-        pyxel.bltm(0, 0, 1, scroll_x, scroll_y, 128, 128, TRANSPARENT_COLOR) # Foreground
+
+        # pyxel.bltm(0, 0, 2, (scroll_x // 4) % 128, (scroll_y // 4) % 128, 128, 128) # Background
+        # pyxel.bltm(0, 0, 1, scroll_x, scroll_y, 128, 128, TRANSPARENT_COLOR) # Foreground
+        
+        # Render map with block handler:
+        blocks_handler.draw()
         # Render fog of war:
 
         # Draw block mining markers
         # Player left, right, down - draw a mark around the blocks
-        
 
         # Draw characters
         pyxel.camera(scroll_x, scroll_y)
@@ -503,7 +538,7 @@ class App:
 
 
 def game_over():
-    global scroll_x,scroll_y, enemies
+    global scroll_x, scroll_y, enemies
     scroll_x = 0
     scroll_y = 0
     player.x = 0
@@ -511,7 +546,6 @@ def game_over():
     player.dx = 0
     player.dy = 0
     enemies = []
-    spawn_enemy(0, 127)
     pyxel.play(3, 9)
 
 
