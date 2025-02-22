@@ -325,6 +325,9 @@ class Blocks:
 class BlocksHandler:
     def __init__(self):
         self.blocks_map: dict[tuple[int, int], BlockID] = {}
+        self.variants_map: dict[tuple[int, int], int] = {}
+        # Initialze variants:
+        self.variants_map = {(x,y) : random.randint(0,3) for x in range(MAP_SIZE_BLOCKS_X) for y in range(MAP_SIZE_BLOCKS_Y)}
         self.generate_map()
 
     def destroy_block(self, block_x, block_y):
@@ -380,7 +383,12 @@ class BlocksHandler:
         screen_x = block_x * 8 - scroll_x
         screen_y = block_y * 8 - scroll_y
 
-        pyxel.blt(screen_x, screen_y, 0, *block_image, TRANSPARENT_COLOR)
+        # Include block variant:
+        variant_int = self.variants_map[(block_x,block_y)]
+        variant_x, variant_y = variant_int%2, variant_int//2
+        (img_u, img_v, img_w, img_h) = block_image
+        variant_block_image = (img_u + variant_x*8, img_v + variant_y*8, img_w, img_h)
+        pyxel.blt(screen_x, screen_y, 0, *variant_block_image, TRANSPARENT_COLOR)
 
         # Draw ore on block
 
