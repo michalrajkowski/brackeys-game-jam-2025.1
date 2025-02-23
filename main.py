@@ -32,6 +32,8 @@ class OreID(Enum):
     NONE = auto()
     GOLD = auto()
     DIAMONDS = auto()
+    MITHRIL = auto()
+    ALIENIUM = auto()
 
 scroll_x, scroll_y = 0, 0
 player = None
@@ -232,19 +234,25 @@ class Ores:
     TEXTURES = {
         OreID.NONE: (0, 0, 0, 0),
         OreID.GOLD: (32, 80, 8, 8),
-        OreID.DIAMONDS: (32, 96, 8, 8)
+        OreID.DIAMONDS: (32, 96, 8, 8),
+        OreID.MITHRIL: (32, 96+16, 8, 8),
+        OreID.ALIENIUM: (32, 96+32, 8, 8)
     }
 
     UI_SPRITES = {
         OreID.NONE: (0, 0, 0, 0),
         OreID.GOLD: (0, 80, 8, 8),
-        OreID.DIAMONDS: (8, 80, 8, 8)
+        OreID.DIAMONDS: (8, 80, 8, 8),
+        OreID.MITHRIL: (16, 80, 8, 8),
+        OreID.ALIENIUM: (24, 80, 8, 8)
     }
 
     BASE_VALUE = {
         OreID.NONE: 0,
         OreID.GOLD: 100,
-        OreID.DIAMONDS: 1000
+        OreID.DIAMONDS: 1000,
+        OreID.MITHRIL: 10000,
+        OreID.ALIENIUM: 999999
     }
 
     @staticmethod
@@ -270,6 +278,10 @@ class OresHandler:
                     self.ores_map[(x, y)] = OreID.GOLD
                 if random.random() < 0.1 and blocks_handler.get_block_id(x, y) == BlockID.STONE:
                     self.ores_map[(x, y)] = OreID.DIAMONDS
+                if random.random() < 0.1 and blocks_handler.get_block_id(x, y) == BlockID.STONE:
+                    self.ores_map[(x, y)] = OreID.MITHRIL
+                if random.random() < 0.1 and blocks_handler.get_block_id(x, y) == BlockID.STONE:
+                    self.ores_map[(x, y)] = OreID.ALIENIUM
 
     def get_ore_id(self, x, y):
         return self.ores_map.get((x, y), OreID.NONE)
