@@ -6,6 +6,7 @@ import math
 import logging
 from enum import Enum, auto
 import random
+from collections import deque
 
 SCREEN_W, SCREEN_H = (128, 128)
 MAP_SIZE_BLOCKS_X, MAP_SIZE_BLOCKS_Y = 90, 150
@@ -19,6 +20,8 @@ TILE_SPAWN2 = (1, 1)
 TILE_SPAWN3 = (2, 1)
 WALL_TILE_X = 4
 VOID_TILE = (0,0)
+
+DARKNESS_SPRITES = [(0,104+y*8,8,8) for y in range(9)]
 
 class BlockID(Enum):
     AIR = auto()
@@ -43,6 +46,7 @@ blocks_handler = None
 ore_handler = None
 inventory_handler = None
 trigger_zones_handler = None
+darkness_system = None
 enemies = []
 
 logging.basicConfig(
@@ -135,6 +139,52 @@ def cleanup_entities(entities):
     for i in range(len(entities) - 1, -1, -1):
         if not entities[i].is_alive:
             del entities[i]
+
+class DarknessSystem:
+    def __init__(self, map_width = 16, map_height = 16):
+        self.map_width = map_width
+        self.map_height = map_height
+        self.light_map = [[0 for _ in range(map_width)] for _ in range(map_height)]
+    
+    def update_lighting(self, world_player_x, world_player_y, base_light=9):
+        self.light_map = [[0 for _ in range(self.map_width)] for _ in range(self.map_height)]
+        block_player_x, block_player_y = world_player_x//8, world_player_y//8
+        screen_player_x, screen_player_y = world_player_x - scroll_x, world_player_y - scroll_y
+        block_screen_x, block_screen_y = screen_player_x//8, screen_player_y//8
+        self.light_map[block_screen_y][block_screen_x] = base_light
+
+        # Simple render around player:
+        visited = set()
+        queue = deque([(0, 0, base_light)])
+        while queue:
+            dx, dy, intensity = queue.popleft()
+            if (dx, dy) in visited:
+                continue
+
+            if intensity <= 0:
+                intensity = 0
+
+            visited.add((dx, dy))
+            if 0 <= block_screen_x+dx < self.map_width and 0 <= block_screen_y+dy < self.map_height:
+                self.light_map[block_screen_y+dy][block_screen_x+dx] = intensity
+
+            next_intensity = intensity
+            next_intensity -= 0.5 if blocks_handler.get_block_id(block_player_x + dx, block_player_y + dy) in [BlockID.GRASS, BlockID.AIR] else 2.0
+
+            directions = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+            for mod_x, mod_y in directions:
+                nx, ny = dx + mod_x, dy + mod_y
+                if 0 <= block_screen_x+nx < self.map_width and 0 <= block_screen_y+dy < self.map_height and (nx, ny) not in visited:
+                    queue.append((nx, ny, next_intensity))
+
+    def render_darkness(self):
+        for y in range(len(self.light_map)):
+            for x in range(len(self.light_map[y])):
+                light_level = self.light_map[y][x]
+                light_level-=1
+                if light_level < 0:
+                    light_level = 0
+                pyxel.blt(scroll_x+ x*8,scroll_y + y*8,0, DARKNESS_SPRITES[int(light_level)][0],DARKNESS_SPRITES[int(light_level)][1],DARKNESS_SPRITES[int(light_level)][2],DARKNESS_SPRITES[int(light_level)][3], TRANSPARENT_COLOR)
 
 class InventoryHandler:
     def __init__(self):
@@ -747,7 +797,7 @@ class App:
         # Change enemy spawn tiles invisible
         pyxel.images[0].rect(0, 8, 24, 8, TRANSPARENT_COLOR)
 
-        global player, input, mining_helper, blocks_handler, ore_handler, inventory_handler, trigger_zones_handler
+        global player, input, mining_helper, blocks_handler, ore_handler, inventory_handler, trigger_zones_handler, darkness_system
         player = Player(0, 0)
         input = InputHandler()
         mining_helper = MiningHelper()
@@ -755,6 +805,7 @@ class App:
         ore_handler = OresHandler()
         inventory_handler = InventoryHandler()
         trigger_zones_handler = TriggerZonesHandler()
+        darkness_system = DarknessSystem()
         pyxel.playm(0, loop=True)
         pyxel.run(self.update, self.draw)
 
@@ -764,14 +815,6 @@ class App:
 
         input.update()
         player.update()
-        for enemy in enemies:
-            if abs(player.x - enemy.x) < 6 and abs(player.y - enemy.y) < 6:
-                game_over()
-                return
-            enemy.update()
-            if enemy.x < scroll_x - 8 or enemy.x > scroll_x + 160 or enemy.y > 160:
-                enemy.is_alive = False
-        cleanup_entities(enemies)
 
     def draw(self):
         pyxel.cls(0)
@@ -799,6 +842,10 @@ class App:
 
         # Trigger zones
         trigger_zones_handler.draw_zones()
+
+        # Lightning
+        darkness_system.update_lighting(player.x, player.y)
+        darkness_system.render_darkness()
 
         # Draw gizmos
         mining_helper.draw()

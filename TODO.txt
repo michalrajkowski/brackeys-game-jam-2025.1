@@ -18,6 +18,10 @@ Block handler:
 # Add random corridors to the map
 - 
 
+# Fog of war mechanic
+- render black screen hider if too far from the player?
+- it is more visibale if there is open corridor? (it penetrates the open space better?)
+
 
 (Unbreakable floor and mine entrance)
 
