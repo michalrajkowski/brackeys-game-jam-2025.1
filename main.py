@@ -274,13 +274,23 @@ class OresHandler:
     def generate_ores(self):
         for x in range(MAP_SIZE_BLOCKS_X):
             for y in range(MAP_SIZE_BLOCKS_Y):
-                if random.random() < 0.1 and blocks_handler.get_block_id(x, y) == BlockID.STONE:
+                block = blocks_handler.get_block_id(x, y)
+                
+                if block not in {BlockID.STONE, BlockID.HARD_STONE, BlockID.MAGMA_ROCK, BlockID.DIRT}:
+                    continue  
+
+                depth_factor = y / MAP_SIZE_BLOCKS_Y
+
+                if y >= 13 and block == BlockID.DIRT and random.random() < 0.05 + depth_factor * 0.1:
                     self.ores_map[(x, y)] = OreID.GOLD
-                if random.random() < 0.1 and blocks_handler.get_block_id(x, y) == BlockID.STONE:
+                
+                if y >= 20 and block in {BlockID.STONE, BlockID.HARD_STONE} and random.random() < 0.02 + depth_factor * 0.15:
                     self.ores_map[(x, y)] = OreID.DIAMONDS
-                if random.random() < 0.1 and blocks_handler.get_block_id(x, y) == BlockID.STONE:
+
+                if y >= 40 and block in {BlockID.HARD_STONE, BlockID.MAGMA_ROCK} and random.random() < 0.01 + depth_factor * 0.1:
                     self.ores_map[(x, y)] = OreID.MITHRIL
-                if random.random() < 0.1 and blocks_handler.get_block_id(x, y) == BlockID.STONE:
+
+                if y >= 60 and block == BlockID.MAGMA_ROCK and random.random() < 0.005 + depth_factor * 0.05:
                     self.ores_map[(x, y)] = OreID.ALIENIUM
 
     def get_ore_id(self, x, y):
