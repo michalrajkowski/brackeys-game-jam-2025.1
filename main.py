@@ -154,7 +154,7 @@ class DangerHandler:
         pyxel.text(scroll_x+1,scroll_y+9,f"{int(self.danger_level)}%".center(6),danger_color)
 
 class DarknessSystem:
-    def __init__(self, map_width = 16, map_height = 16):
+    def __init__(self, map_width = 17, map_height = 17):
         self.map_width = map_width
         self.map_height = map_height
         self.light_map = [[0 for _ in range(map_width)] for _ in range(map_height)]
@@ -197,7 +197,9 @@ class DarknessSystem:
                 light_level-=1
                 if light_level < 0:
                     light_level = 0
-                pyxel.blt(scroll_x+ x*8,scroll_y + y*8,0, DARKNESS_SPRITES[int(light_level)][0],DARKNESS_SPRITES[int(light_level)][1],DARKNESS_SPRITES[int(light_level)][2],DARKNESS_SPRITES[int(light_level)][3], TRANSPARENT_COLOR)
+                if light_level > 5:
+                    light_level = 8
+                pyxel.blt(scroll_x//8*8+ x*8,scroll_y//8*8 + y*8,0, DARKNESS_SPRITES[int(light_level)][0],DARKNESS_SPRITES[int(light_level)][1],DARKNESS_SPRITES[int(light_level)][2],DARKNESS_SPRITES[int(light_level)][3], TRANSPARENT_COLOR)
 
 class InventoryHandler:
     def __init__(self):
@@ -634,6 +636,8 @@ class InputHandler:
         self.hold_counters = {key: 0 for key in self.keys}
 
     def update(self):
+        if pyxel.btn(pyxel.KEY_R):
+            game_over()
         for action, keys in self.keys.items():
             pressed_now = any(pyxel.btnp(k) for k in keys)
             held_now = any(pyxel.btn(k) for k in keys)
@@ -811,7 +815,7 @@ class App:
         pyxel.images[0].rect(0, 8, 24, 8, TRANSPARENT_COLOR)
 
         global player, input, mining_helper, blocks_handler, ore_handler, inventory_handler, trigger_zones_handler, darkness_system, danger_handler
-        player = Player(0, 0)
+        player = Player(MAP_SIZE_BLOCKS_X//2*8, 0)
         input = InputHandler()
         mining_helper = MiningHelper()
         blocks_handler = BlocksHandler()
@@ -874,14 +878,16 @@ class App:
 
 
 def game_over():
-    global scroll_x, scroll_y, enemies
-    scroll_x = 0
-    scroll_y = 0
-    player.x = 0
-    player.y = 0
-    player.dx = 0
-    player.dy = 0
-    enemies = []
+    global player, input, mining_helper, blocks_handler, ore_handler, inventory_handler, trigger_zones_handler, darkness_system, danger_handler
+    player = Player(MAP_SIZE_BLOCKS_X//2*8, 0)
+    input = InputHandler()
+    mining_helper = MiningHelper()
+    blocks_handler = BlocksHandler()
+    ore_handler = OresHandler()
+    inventory_handler = InventoryHandler()
+    trigger_zones_handler = TriggerZonesHandler()
+    darkness_system = DarknessSystem()
+    danger_handler = DangerHandler()
     pyxel.play(3, 9)
 
 
