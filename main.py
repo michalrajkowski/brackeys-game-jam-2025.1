@@ -39,6 +39,7 @@ class OreID(Enum):
     ALIENIUM = auto()
 
 scroll_x, scroll_y = 0, 0
+is_on_ship = True
 player = None
 input = None
 mining_helper = None
@@ -636,8 +637,8 @@ class InputHandler:
         self.hold_counters = {key: 0 for key in self.keys}
 
     def update(self):
-        if pyxel.btn(pyxel.KEY_R):
-            game_over()
+        if pyxel.btnp(pyxel.KEY_R):
+            reset_map()
         for action, keys in self.keys.items():
             pressed_now = any(pyxel.btnp(k) for k in keys)
             held_now = any(pyxel.btn(k) for k in keys)
@@ -811,11 +812,15 @@ class App:
         pyxel.init(128, 128, title="2D Miner")
         pyxel.load("assets/miner.pyxres")
         pyxel.images[1].load(0, 0, "spaceship.png")
+        pyxel.images[2].load(0, 0, "epic_duck.png")
 
         # Change enemy spawn tiles invisible
         pyxel.images[0].rect(0, 8, 24, 8, TRANSPARENT_COLOR)
 
-        global player, input, mining_helper, blocks_handler, ore_handler, inventory_handler, trigger_zones_handler, darkness_system, danger_handler
+        global player, input, mining_helper, blocks_handler, ore_handler, inventory_handler, trigger_zones_handler, darkness_system, danger_handler, is_on_ship
+
+        is_on_ship = True
+
         player = Player(MAP_SIZE_BLOCKS_X//2*8, 0)
         input = InputHandler()
         mining_helper = MiningHelper()
@@ -825,6 +830,9 @@ class App:
         trigger_zones_handler = TriggerZonesHandler()
         darkness_system = DarknessSystem()
         danger_handler = DangerHandler()
+        
+        # ??
+
         pyxel.playm(0, loop=True)
         pyxel.run(self.update, self.draw)
 
@@ -867,7 +875,8 @@ class App:
         darkness_system.update_lighting(player.x, player.y)
         darkness_system.render_darkness()
         
-        # pyxel.blt(scroll_x,scroll_y,1,0,0,128,128)
+        if (is_on_ship):
+            pyxel.blt(scroll_x,scroll_y,1,0,0,128,128)
 
         # Draw nagerometer
         danger_handler.draw()
@@ -878,18 +887,37 @@ class App:
         # UI
         inventory_handler.draw_ui()
 
-def game_over():
-    global player, input, mining_helper, blocks_handler, ore_handler, inventory_handler, trigger_zones_handler, darkness_system, danger_handler
+def reset_map():
+    global is_on_ship
+    is_on_ship = not is_on_ship
+    if is_on_ship:
+        initialize_ship()
+    else:
+        initialize_planet()
+
+
+def initialize_ship():
+    print("INITIALIZE SHIP")
+    global player, input, mining_helper, blocks_handler, ore_handler, inventory_handler, trigger_zones_handler, darkness_system, danger_handler, is_on_ship
+    is_on_ship = True
     player = Player(MAP_SIZE_BLOCKS_X//2*8, 0)
-    input = InputHandler()
     mining_helper = MiningHelper()
     blocks_handler = BlocksHandler()
     ore_handler = OresHandler()
-    inventory_handler = InventoryHandler()
     trigger_zones_handler = TriggerZonesHandler()
     darkness_system = DarknessSystem()
     danger_handler = DangerHandler()
-    pyxel.play(3, 9)
 
+def initialize_planet():
+    print("INITIALIZE PLANET")
+    global player, input, mining_helper, blocks_handler, ore_handler, inventory_handler, trigger_zones_handler, darkness_system, danger_handler, is_on_ship
+    is_on_ship = False
+    player = Player(MAP_SIZE_BLOCKS_X//2*8, 0)
+    mining_helper = MiningHelper()
+    blocks_handler = BlocksHandler()
+    ore_handler = OresHandler()
+    trigger_zones_handler = TriggerZonesHandler()
+    darkness_system = DarknessSystem()
+    danger_handler = DangerHandler()
 
 App()
