@@ -1,5 +1,5 @@
 # Code was based on: https://github.com/kitao/pyxel/blob/main/python/pyxel/examples/10_platformer.py
-
+# spaceship image: https://pixabay.com/pl/illustrations/podr%C3%B3%C5%BC-wsch%C3%B3d-s%C5%82o%C5%84ca-glob-1800268/
 
 import pyxel
 import math
@@ -810,6 +810,7 @@ class App:
     def __init__(self):
         pyxel.init(128, 128, title="2D Miner")
         pyxel.load("assets/miner.pyxres")
+        pyxel.images[1].load(0, 0, "spaceship.png")
 
         # Change enemy spawn tiles invisible
         pyxel.images[0].rect(0, 8, 24, 8, TRANSPARENT_COLOR)
@@ -865,7 +866,8 @@ class App:
         # Lightning
         darkness_system.update_lighting(player.x, player.y)
         darkness_system.render_darkness()
-
+        
+        # pyxel.blt(scroll_x,scroll_y,1,0,0,128,128)
 
         # Draw nagerometer
         danger_handler.draw()
@@ -875,7 +877,6 @@ class App:
 
         # UI
         inventory_handler.draw_ui()
-
 
 def game_over():
     global player, input, mining_helper, blocks_handler, ore_handler, inventory_handler, trigger_zones_handler, darkness_system, danger_handler
