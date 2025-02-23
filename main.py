@@ -8,7 +8,7 @@ from enum import Enum, auto
 import random
 
 SCREEN_W, SCREEN_H = (128, 128)
-MAP_SIZE_BLOCKS_X, MAP_SIZE_BLOCKS_Y = 256, 256
+MAP_SIZE_BLOCKS_X, MAP_SIZE_BLOCKS_Y = 90, 150
 
 TRANSPARENT_COLOR = 2
 SCROLL_BORDER_X = 80
@@ -25,11 +25,15 @@ class BlockID(Enum):
     GRASS = auto()
     DIRT = auto()
     STONE = auto()
+    HARD_STONE = auto()
+    MAGMA_ROCK = auto()
 
 class OreID(Enum):
     NONE = auto()
     GOLD = auto()
     DIAMONDS = auto()
+    MITHRIL = auto()
+    ALIENIUM = auto()
 
 scroll_x, scroll_y = 0, 0
 player = None
@@ -175,7 +179,7 @@ class MiningHelper:
             self.current_block = block_pos
             self.mining_hits = 0  # Reset progress when switching blocks
 
-        self.mining_hits += 1
+        self.mining_hits += 100
 
         if self.mining_hits >= self.required_hits:
             destroy_block(block_pos[0], block_pos[1])
@@ -230,19 +234,25 @@ class Ores:
     TEXTURES = {
         OreID.NONE: (0, 0, 0, 0),
         OreID.GOLD: (32, 80, 8, 8),
-        OreID.DIAMONDS: (32, 96, 8, 8)
+        OreID.DIAMONDS: (32, 96, 8, 8),
+        OreID.MITHRIL: (32, 96+16, 8, 8),
+        OreID.ALIENIUM: (32, 96+32, 8, 8)
     }
 
     UI_SPRITES = {
         OreID.NONE: (0, 0, 0, 0),
         OreID.GOLD: (0, 80, 8, 8),
-        OreID.DIAMONDS: (8, 80, 8, 8)
+        OreID.DIAMONDS: (8, 80, 8, 8),
+        OreID.MITHRIL: (16, 80, 8, 8),
+        OreID.ALIENIUM: (24, 80, 8, 8)
     }
 
     BASE_VALUE = {
         OreID.NONE: 0,
         OreID.GOLD: 100,
-        OreID.DIAMONDS: 1000
+        OreID.DIAMONDS: 1000,
+        OreID.MITHRIL: 10000,
+        OreID.ALIENIUM: 999999
     }
 
     @staticmethod
@@ -264,10 +274,24 @@ class OresHandler:
     def generate_ores(self):
         for x in range(MAP_SIZE_BLOCKS_X):
             for y in range(MAP_SIZE_BLOCKS_Y):
-                if random.random() < 0.1 and blocks_handler.get_block_id(x, y) == BlockID.STONE:
+                block = blocks_handler.get_block_id(x, y)
+                
+                if block not in {BlockID.STONE, BlockID.HARD_STONE, BlockID.MAGMA_ROCK, BlockID.DIRT}:
+                    continue  
+
+                depth_factor = y / MAP_SIZE_BLOCKS_Y
+
+                if y >= 13 and block == BlockID.DIRT and random.random() < 0.05 + depth_factor * 0.1:
                     self.ores_map[(x, y)] = OreID.GOLD
-                if random.random() < 0.1 and blocks_handler.get_block_id(x, y) == BlockID.STONE:
+                
+                if y >= 20 and block in {BlockID.STONE, BlockID.HARD_STONE} and random.random() < 0.02 + depth_factor * 0.15:
                     self.ores_map[(x, y)] = OreID.DIAMONDS
+
+                if y >= 40 and block in {BlockID.HARD_STONE, BlockID.MAGMA_ROCK} and random.random() < 0.01 + depth_factor * 0.1:
+                    self.ores_map[(x, y)] = OreID.MITHRIL
+
+                if y >= 60 and block == BlockID.MAGMA_ROCK and random.random() < 0.005 + depth_factor * 0.05:
+                    self.ores_map[(x, y)] = OreID.ALIENIUM
 
     def get_ore_id(self, x, y):
         return self.ores_map.get((x, y), OreID.NONE)
@@ -282,9 +306,11 @@ class Blocks:
     # Block properties stored in a dictionary (no instance data)
     TEXTURES = {
         BlockID.AIR: (48, 112, 8, 8),
-        BlockID.GRASS: (48, 104, 8, 8),
+        BlockID.GRASS: (48, 96, 8, 8),
         BlockID.DIRT: (48, 80, 8, 8),
         BlockID.STONE: (48, 64, 8, 8),
+        BlockID.HARD_STONE: (48, 128, 8, 8),
+        BlockID.MAGMA_ROCK: (48, 144, 8, 8),
     }
 
     SOLIDITY = {
@@ -292,6 +318,8 @@ class Blocks:
         BlockID.GRASS: True,
         BlockID.DIRT: True,
         BlockID.STONE: True,
+        BlockID.HARD_STONE: True,
+        BlockID.MAGMA_ROCK: True,
     }
 
     MINING_HITS = {
@@ -299,6 +327,8 @@ class Blocks:
         BlockID.GRASS: 5,
         BlockID.DIRT: 10,
         BlockID.STONE: 20,
+        BlockID.HARD_STONE: 50,
+        BlockID.MAGMA_ROCK: 200,
     }
 
     @staticmethod
@@ -317,7 +347,12 @@ class Blocks:
 class BlocksHandler:
     def __init__(self):
         self.blocks_map: dict[tuple[int, int], BlockID] = {}
+        self.variants_map: dict[tuple[int, int], int] = {}
+        # Initialze variants:
+        self.variants_map = {(x,y) : random.randint(0,3) for x in range(MAP_SIZE_BLOCKS_X) for y in range(MAP_SIZE_BLOCKS_Y)}
         self.generate_map()
+        self.generate_caves()
+        self.rocks_gradient_changer()
 
     def destroy_block(self, block_x, block_y):
         if not self.is_in_range(block_x, block_y):
@@ -334,7 +369,7 @@ class BlocksHandler:
         for i in range(MAP_SIZE_BLOCKS_X):
             for j in range(MAP_SIZE_BLOCKS_Y):
                 if j > 6:
-                    self.blocks_map[(i, j)] = BlockID.STONE
+                    self.blocks_map[(i, j)] = BlockID.AIR
                     # self.blocks_map[(i, j)] = random.choice(list(BlockID))
                 else:
                     self.blocks_map[(i, j)] = BlockID.AIR
@@ -372,13 +407,82 @@ class BlocksHandler:
         screen_x = block_x * 8 - scroll_x
         screen_y = block_y * 8 - scroll_y
 
-        pyxel.blt(screen_x, screen_y, 0, *block_image, TRANSPARENT_COLOR)
+        # Include block variant:
+        variant_int = self.variants_map[(block_x,block_y)]
+        variant_x, variant_y = variant_int%2, variant_int//2
+        (img_u, img_v, img_w, img_h) = block_image
+        variant_block_image = (img_u + variant_x*8, img_v + variant_y*8, img_w, img_h)
+        pyxel.blt(screen_x, screen_y, 0, *variant_block_image, TRANSPARENT_COLOR)
 
         # Draw ore on block
 
         ore_id = ore_handler.get_ore_id(block_x, block_y)
         ore_image = Ores.get_texture(ore_id)
         pyxel.blt(screen_x, screen_y, 0, *ore_image, TRANSPARENT_COLOR)
+
+    def generate_caves(self, fill_probability=72, iterations=5):
+        for y in range(MAP_SIZE_BLOCKS_Y):
+            for x in range(MAP_SIZE_BLOCKS_X):
+                if random.randint(0, 100) < fill_probability:
+                    self.set_block(x,y, BlockID.STONE)
+                else:
+                    self.set_block(x,y, BlockID.AIR)
+
+        for _ in range(iterations):
+            new_blocks_map : dict[tuple[int, int], BlockID] = {} 
+            for y in range(1, MAP_SIZE_BLOCKS_Y-1):
+                for x in range(1, MAP_SIZE_BLOCKS_X-1):
+                    # Count walls around
+                    walls = sum(1 for dy in range(-1, 2) for dx in range(-1, 2)
+                                if self.get_block_id(x+dx,y+dy) == BlockID.STONE and (dx != 0 or dy != 0))
+                    
+                    if walls >= 5:
+                        new_blocks_map[(x,y)] = BlockID.STONE
+                    else:
+                        new_blocks_map[(x,y)] = BlockID.AIR
+            self.blocks_map = new_blocks_map
+        # Fix missing borders
+        for y in range(MAP_SIZE_BLOCKS_Y):
+            self.set_block(0, y, BlockID.STONE)
+            self.set_block(MAP_SIZE_BLOCKS_X-1, y, BlockID.STONE)
+
+    def rocks_gradient_changer(self, layer_height=10, buffer=10):
+        layers = [BlockID.DIRT, BlockID.STONE, BlockID.HARD_STONE, BlockID.MAGMA_ROCK]
+        
+        for y in range(MAP_SIZE_BLOCKS_Y):
+            for x in range(MAP_SIZE_BLOCKS_X):
+                if y < 10:
+                    self.set_block(x, y, BlockID.AIR)
+                elif y == 10:
+                    self.set_block(x, y, BlockID.GRASS)
+                elif y < 13:
+                    self.set_block(x, y, BlockID.DIRT)
+                else:
+                    layer_index = (y - 13) // (layer_height + buffer)
+                    layer_index = min(layer_index, len(layers) - 1)
+                    
+                    primary_block = layers[layer_index]
+                    layer_start = 13 + layer_index * (layer_height + buffer)
+                    layer_end = layer_start + layer_height
+                    transition_top = layer_start - buffer
+                    transition_bottom = layer_end
+
+                    if transition_top <= y < layer_start and layer_index > 0:
+                        above_block = layers[layer_index - 1]
+                        mix_prob = (y - transition_top) / buffer
+                        if self.get_block_id(x, y) == BlockID.STONE:
+                            self.set_block(x, y, above_block if random.random() > mix_prob else primary_block)
+
+                    elif transition_bottom <= y < transition_bottom + buffer and layer_index < len(layers) - 1:
+                        below_block = layers[layer_index + 1]
+                        mix_prob = (transition_bottom + buffer - y) / buffer
+                        if self.get_block_id(x, y) == BlockID.STONE:
+                            self.set_block(x, y, below_block if random.random() > mix_prob else primary_block)
+
+                    else:
+                        if self.get_block_id(x, y) == BlockID.STONE:
+                            self.set_block(x, y, primary_block)
+
 
 def area_to_xywh(area):
     (x1,y1,x2,y2) = area
@@ -538,12 +642,12 @@ class Player:
         self.dx = int(self.dx * 0.8)
         self.is_falling = self.y > last_y
 
-        self.x = clamp(self.x, 0, 248 * 8)
-        self.y = clamp(self.y, 0, 248 * 8)
+        self.x = clamp(self.x, 0, MAP_SIZE_BLOCKS_X * 8)
+        self.y = clamp(self.y, 0, MAP_SIZE_BLOCKS_Y * 8)
 
         if self.x > scroll_x + SCROLL_BORDER_X:
             last_scroll_x = scroll_x
-            scroll_x = min(self.x - SCROLL_BORDER_X, 240 * 8)
+            scroll_x = min(self.x - SCROLL_BORDER_X, (MAP_SIZE_BLOCKS_X-8) * 8)
             # spawn_enemy(last_scroll_x + 128, scroll_x + 127)
         if self.x < scroll_x + (SCREEN_W - SCROLL_BORDER_X):
             last_scroll_x = scroll_x
@@ -551,7 +655,7 @@ class Player:
             # spawn_enemy(last_scroll_x + 128, scroll_x + 127)
         if self.y > scroll_y + SCROLL_BORDER_Y:
             last_scroll_y = scroll_y
-            scroll_y = min(self.y - SCROLL_BORDER_Y, 240 * 8)
+            scroll_y = min(self.y - SCROLL_BORDER_Y, (MAP_SIZE_BLOCKS_Y-8) * 8)
             # spawn_enemy(last_scroll_x + 128, scroll_x + 127)
         if self.y < scroll_y + (SCREEN_H - SCROLL_BORDER_Y):
             last_scroll_y = scroll_y
