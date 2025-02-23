@@ -47,6 +47,7 @@ ore_handler = None
 inventory_handler = None
 trigger_zones_handler = None
 darkness_system = None
+danger_handler = None
 enemies = []
 
 logging.basicConfig(
@@ -140,6 +141,18 @@ def cleanup_entities(entities):
         if not entities[i].is_alive:
             del entities[i]
 
+class DangerHandler:
+    def __init__(self):
+        self.danger_level=0
+
+    def update(self):
+        self.danger_level+=1/30/3
+
+    def draw(self):
+        danger_color = 7 if self.danger_level < 50 else (10 if self.danger_level < 75 else 8)
+        pyxel.text(scroll_x+1,scroll_y+1,"Danger",danger_color)
+        pyxel.text(scroll_x+1,scroll_y+9,f"{int(self.danger_level)}%".center(6),danger_color)
+
 class DarknessSystem:
     def __init__(self, map_width = 16, map_height = 16):
         self.map_width = map_width
@@ -207,14 +220,14 @@ class InventoryHandler:
     
     def draw_ui(self):
         y_offset = 1
-        x_offset = 5
+        x_offset = 30
         for ore, count in self.get_inventory().items():
             ore_name = ore.name.capitalize()
             ore_ui_sprite = Ores.get_ui_sprite(ore)
             pyxel.blt(scroll_x+ x_offset,scroll_y + y_offset,0, *ore_ui_sprite, TRANSPARENT_COLOR)
             pyxel.text(scroll_x+x_offset+9, scroll_y+y_offset, f"x{count}", 7)
-            x_offset += 16  # Move down for next item
-        pyxel.text(scroll_x+SCREEN_W-20, scroll_y, f"{self.player_money}$",7)
+            x_offset += 22  # Move down for next item
+        pyxel.text(scroll_x+SCREEN_W-40, scroll_y+1, f"{self.player_money}$".rjust(10),7)
 
 class MiningHelper:
     def __init__(self, required_hits=45):
@@ -797,7 +810,7 @@ class App:
         # Change enemy spawn tiles invisible
         pyxel.images[0].rect(0, 8, 24, 8, TRANSPARENT_COLOR)
 
-        global player, input, mining_helper, blocks_handler, ore_handler, inventory_handler, trigger_zones_handler, darkness_system
+        global player, input, mining_helper, blocks_handler, ore_handler, inventory_handler, trigger_zones_handler, darkness_system, danger_handler
         player = Player(0, 0)
         input = InputHandler()
         mining_helper = MiningHelper()
@@ -806,6 +819,7 @@ class App:
         inventory_handler = InventoryHandler()
         trigger_zones_handler = TriggerZonesHandler()
         darkness_system = DarknessSystem()
+        danger_handler = DangerHandler()
         pyxel.playm(0, loop=True)
         pyxel.run(self.update, self.draw)
 
@@ -815,6 +829,7 @@ class App:
 
         input.update()
         player.update()
+        danger_handler.update()
 
     def draw(self):
         pyxel.cls(0)
@@ -846,6 +861,10 @@ class App:
         # Lightning
         darkness_system.update_lighting(player.x, player.y)
         darkness_system.render_darkness()
+
+
+        # Draw nagerometer
+        danger_handler.draw()
 
         # Draw gizmos
         mining_helper.draw()
